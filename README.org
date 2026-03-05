@@ -16,39 +16,22 @@ and scaling options to improve the OCR. You can try adjusting --min-width and
 files with a text editor or a special subtitle editor.
 
 * Tested with:
-
-Minimum:
 - Debian GNU/Linux 5 "Lenny" (fully updated final point release, details slipped my mind)
 - Debian GNU/Linux 6.0.10 "Squeeze"
-- kernel 2.6.32-5-amd64
-- GCC 4.4.5
-- CMake 2.8.2
-- libtiff4-3.9.45squeeze10
-- libjpeg62-dev 6b1-1
-- tesseract-ocr-dev 2.04.2
-- libleptonica-dev 1.62.1.1+b1
-- tesseract-ocr-eng
+- Fedora 33
 
-Current:
+See master branch for:
 - Arch Linux
-- kernel 6.19-rc7 (amd64, custom tuning)
-- GCC 15.2.1
-- CMake 4.2.3
-- libtiff 4.7.1-1
-- libjpeg-turbo 3.1.3.1
-- tesseract-data-eng 2.4.1.0-4
-- tesseract 5.5.2.1
-- leptonica 1.87.0-1
-
+- Debian 9-14
+- Fedora 34-44+Rawhide
 
 * Building
 You will need Tesseract, CMake 2.6.0+ and GCC 4.3+ to build it, as well as a few imaging libraries.
 On a Debian-based system you can install the dependencies with:
 
-Note: Substitute libtiff-dev with libtiff4-dev if the package is not found!
 
 #+BEGIN_EXAMPLE
-  sudo apt-get install tesseract-ocr-dev libtiff-dev tesseract-ocr-eng build-essential cmake pkg-config libleptonica-dev
+  sudo apt-get install libtesseract-dev build-essential cmake pkg-config
 #+END_EXAMPLE
 
 You should also install the tesseract data for the languages you want to use!
@@ -75,10 +58,10 @@ static library files for tesseract, libtill, libavutils, and for their
 dependencies as well.  On Ubuntu 12.04 the static libraries are only included in
 the dev packages! You may also need the Gold linker.
 
-For Debian you need the following extra packages, save binutils-gold for a possible edge scenario:
+For Debian you may need the following extra packages:
 
 #+BEGIN_EXAMPLE
-  sudo apt-get install libpng12-dev libwebp-dev libgif-dev zlib1g-dev libjpeg-dev binutils-gold
+  sudo apt-get install libpng-dev libwebp-dev libgif-dev zlib1g-dev libjpeg-dev binutils-gold
 #+END_EXAMPLE
 
 If linking fails with undefined references then checking what other dependencies
