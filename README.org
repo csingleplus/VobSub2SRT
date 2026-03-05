@@ -15,19 +15,17 @@ and scaling options to improve the OCR. You can try adjusting --min-width and
 --min-height, or --y-threshold. Otherwise correct mistakes in the =.srt=
 files with a text editor or a special subtitle editor.
 
-*** Branch notes:
+*** Tested distributions:
 **legacy:
 This branch will likely get less attention than master. Bugs (or more of them) may be here.
-
 - Debian GNU/Linux 5 "Lenny" (fully updated final point release, details slipped my mind)
 - Debian GNU/Linux 6.0.10 "Squeeze"
 - Fedora 33
 
 
 **master 
-
 - Arch Linux
-- Fedora 34-40 (Fedora 39 requires cmake downgrade to 3.27 if using 3.30)
+- Fedora 34-44, and Rawhide (Fedora 39 requires cmake downgrade to 3.27 if using 3.30)
 - Debian 9-14
 
 * Building
@@ -38,7 +36,7 @@ On a Debian-based system you can install the dependencies with:
 Note: Substitute libtiff-dev with libtiff4(or 5, etc)-dev if the package is not found!
 
 #+BEGIN_EXAMPLE
-  sudo apt-get install libtesseract-dev libtiff-dev tesseract-ocr-eng build-essential cmake pkg-config
+  sudo apt-get install libtesseract-dev build-essential cmake pkg-config
 #+END_EXAMPLE
 
 You should also install the tesseract data for the languages you want to use!
@@ -66,7 +64,7 @@ static library files for tesseract, libtill, libavutils, and for their
 dependencies as well.  On Ubuntu 12.04 the static libraries are only included in
 the dev packages! You may also need the Gold linker.
 
-For Debian you need the following extra packages:
+For Debian you may need the following extra packages:
 
 #+BEGIN_EXAMPLE
   sudo apt-get install libpng-dev libwebp-dev zlib1g-dev libjpeg-dev
