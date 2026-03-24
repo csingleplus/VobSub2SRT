@@ -65,8 +65,7 @@ running =ldd /usr/lib/liblept.so= (or whatever the path to leptonica is on your
 system). Add those dependencies to =CMakeModules/FindTesseract.cmake=.
 
 ** Ubuntu PPA and .deb packages
-* NOTE: This PPA is no longer maintained and it is recommended to build from 
-	current source.
+* NOTE: This PPA is no longer maintained and it is recommended to build from current source.
 	
 I have created a [[https://launchpad.net/~ruediger-c-plusplus/+archive/vobsub2srt][PPA (Personal Package Archive)]] to make installation on
 Ubuntu easy.  Simply add the PPA to your apt-get sources and run an update and
@@ -154,7 +153,7 @@ in your .idx file to this, a plain white-on-black palette for better accuracy.
 	palette: 000000,ffffff,000000,000000,000000,000000,ffffff,000000,000000,000000,000000,ffffff,000000,ffffff,000000,ffffff
 	#+END_SRC
 
-For bug reports please run =vobsub2srt= with the =--verbose= option set to 3,
+For bug reports please run =vobsub2srt= with the =--verbose= option set to 2,
 and copy and paste the full output to the bug report.
 
 * To Do
