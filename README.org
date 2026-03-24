@@ -1,4 +1,4 @@
--*- mode:org; mode:auto-fill; fill-column:80; coding:utf-8; -*-
+# -*- mode:org; mode:auto-fill; fill-column:80; coding:utf-8; -*-
 VobSub2SRT is a simple command line program to convert =.idx= / =.sub= subtitles
 into =.srt= text subtitles by using OCR.  It is based on code from the
 [[http://www.mplayerhq.hu][MPlayer project]] - a really really great movie player.  Some minor parts are
