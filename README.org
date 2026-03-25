@@ -32,7 +32,7 @@ You should also install the tesseract data for the languages you want to use!
 
 #+BEGIN_EXAMPLE
 	sudo apt-get install tesseract-lang-eng
-@+END_EXAMPLE
+#+END_EXAMPLE
 
 Note that the support for tesseract 2 is deprecated and will be removed in the
 future!
