@@ -1,14 +1,12 @@
-cmake_minimum_required(VERSION 3.5...4.2 FATAL_ERROR)
-cmake_policy(VERSION 3.5...4.2)
+cmake_minimum_required(VERSION 3.5)
 project(vobsub2srt)
-
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/CMakeModules)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(
         CMAKE_BUILD_TYPE
-        Debug
+        Release
         CACHE
         STRING
         "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
@@ -54,10 +52,10 @@ include(CheckCXXCompilerFlag)
 include(CheckCXXSourceCompiles)
 include(CheckCXXSourceRuns)
 
-set(CMAKE_C_FLAGS "-std=gnu11")
-set(CMAKE_CXX_FLAGS "-ansi -pedantic -Wall -Wextra -Wno-long-long -std=gnu++11")
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_FLAGS "-ansi -pedantic -Wall -Wextra -Wno-long-long")
+
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -mtune=native -march=native -DNDEBUG -fomit-frame-pointer -ffast-math") # TODO -Ofast GCC 4.6
 set(CMAKE_C_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
 set(CMAKE_CXX_FLAGS_DEBUG "-g3 -DDEBUG")
@@ -119,7 +117,7 @@ execute_process (
 if(EXECUTE_RESULT)
   message(STATUS "dpkg not found: No package generation.")
 else()
-  message(STATUS "System architecture: ${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}")
+  message(STATUS "Debian architecture: ${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}")
   set(CPACK_GENERATOR "DEB")
   set(CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
   set(CPACK_PACKAGE_VERSION "${VOBSUB2SRT_VERSION}")
