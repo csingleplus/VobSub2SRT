@@ -16,7 +16,7 @@ jobs:
     - name: update-apt
       run: sudo apt update
     - name: install-deps
-      run: sudo apt install libtesseract-dev tesseract-ocr-eng g++ gcc cmake -y
+      run: sudo apt install libtesseract-dev tesseract-ocr-eng libtiff5-dev g++ gcc cmake -y
     - name: configure
       run: ./configure
     - name: make
