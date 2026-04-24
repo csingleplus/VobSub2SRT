@@ -47,9 +47,23 @@ void spudec_set_paletted(void *self, const uint8_t *pal_img, int stride,
                          const void *palette,
                          int x, int y, int w, int h,
                          double pts, double endpts);
+
 /// call this after spudec_assemble and spudec_heartbeat to get the packet data
-void spudec_get_data(void *self, const unsigned char **image, size_t *image_size, unsigned *width, unsigned *height,
-                     unsigned *stride, unsigned *start_pts, unsigned *end_pts);
+  void spudec_get_data(void *self, const unsigned char **image, size_t *image_size,
+		       unsigned *width, unsigned *height, unsigned *stride,
+		       unsigned *start_pts, unsigned *end_pts);
+
+  /**
+   * Get scaled SPU image data. If scale_width/height are non-zero,
+   * the scaled image is returned; otherwise keep original resolution.
+   */
+  void spudec_get_data_scaled(void *self, const unsigned char **scaled_image, size_t *scaled_image_size,
+			      unsigned *width, unsigned *height, unsigned *stride,
+			      unsigned *start_pts, unsigned *end_pts,
+			      unsigned int *scaled_width, unsigned int *scaled_height,
+			      unsigned int *scaled_stride);
+
+  void spudec_get_frame_size(void *self, unsigned *frame_width, unsigned *frame_height);
 
 #ifdef __cplusplus
 }

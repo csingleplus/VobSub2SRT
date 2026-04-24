@@ -1,4 +1,4 @@
-# -*- mode:org; mode:auto-fill; fill-column:80; coding:utf-8; -*-
+# -*- mode:org; mode:auto-fill; fill-column:80; coding:utf-8; tab-width:0; -*-
 VobSub2SRT is a simple command line program to convert =.idx= / =.sub= subtitles
 into =.srt= text subtitles by using OCR.  It is based on code from the
 [[http://www.mplayerhq.hu][MPlayer project]] - a really really great movie player.  Some minor parts are
@@ -9,32 +9,37 @@ GPL2+ licensed.
 
 The quality of the OCR depends on the text in the subtitles. Currently the code
 does not use any preprocessing.  But I'm currently looking into adding filters
-and scaling options to improve the OCR. You can correct mistakes in the =.srt=
-files with a text editor or a special subtitle editor.
+to improve the OCR. You can correct mistakes in the =.srt= files with a text
+editor or a subtitle editor.
+
+
+** New for April/May 2026
+-       Scaling of subtitles implemented (try --scale)
+-       Final memory leak closed in vobsub.c
 
 ** New for March 2026
 -	Memory safety
 -	MPlayer verbosity separated from realtime text output
 
 ** Upcoming:
--	Selectable page segmentation modes
--	Scaling of processed subtitles
+-	Subtitle anti-aliasing for further accuracy enhancement.
+
 
 * Building
 You need Tesseract, CMake and GCC to build =vobsub2srt=.
 With a Debian-based distribution, you can install the dependencies with:
 
 #+BEGIN_EXAMPLE
-  sudo apt-get install libtiff5-dev libtesseract-dev build-essential cmake pkg-config
+  sudo apt-get install libtesseract-dev build-essential cmake pkg-config
 #+END_EXAMPLE
 
-You should also install the tesseract data for the languages you want to use!
+You also need to install the tesseract data for the languages you want to use.
 
 #+BEGIN_EXAMPLE
 	sudo apt-get install tesseract-lang-eng
 #+END_EXAMPLE
 
-Note that the support for tesseract 2 is deprecated and will be removed in the
+Note that support for tesseract 2 is deprecated and may not work in the
 future!
 
 #+BEGIN_EXAMPLE
@@ -45,6 +50,7 @@ future!
 
 This should install the program vobsub2srt to =/usr/local/bin=.  You can
 uninstall vobsub2srt with =sudo make uninstall=.
+
 ** Static binary
 I recommend using the dynamic binary! However if you really need a static binary
 you can add the flag =-DBUILD_STATIC=ON= to the =./configure= call.  But be
@@ -85,34 +91,31 @@ You can also create a source package and upload it to your own PPA by using the
 =UploadPPA.cmake=. But this is only recommended for people experienced with
 cmake and creating Debian packages.
 
+
+** This is also no longer maintained. I am aware of a fork with a fixed formula,
+so feel free to seek that out, otherwise just build from source or stop using a
+Mac.
+
+
 ** Homebrew
 Vobsub2srt contains a formula for [[http://mxcl.github.com/homebrew/][Homebrew]] (a package manager for OS X).  It can
 be installed by using the following commands:
 
 #+BEGIN_EXAMPLE
   brew install --with-all-languages tesseract
-  brew install --HEAD https://github.com/ruediger/VobSub2SRT/raw/master/packaging/vobsub2srt.rb
+  brew install --HEAD https://github.com/csingleplus/VobSub2SRT/raw/master/packaging/vobsub2srt.rb
 #+END_EXAMPLE
+
 
 ** Gentoo ebuild
-An [[http://en.wikipedia.org/wiki/Ebuild][ebuild]] for Gentoo Linux is also available.  You can make it available to
-emerge with the following steps
+You run Gentoo. I doubt you need further instructions for this.
 
-#+BEGIN_EXAMPLE
-  sudo mkdir -p /usr/local/portage/media-video/vobsub2srt/
-  wget https://github.com/ruediger/VobSub2SRT/raw/master/packaging/vobsub2srt-9999.ebuild
-  sudo mv vobsub2srt-9999.ebuild /usr/local/portage/media-video/vobsub2srt/
-  cd /usr/local/portage/media-video/vobsub2srt/
-  sudo ebuild vobsub2srt-999.ebuild digest
-#+END_EXAMPLE
-
-You should be able to install vobsub2srt with =emerge vobsub2srt= now.  If you
-want to use a newer version (3+) of tesseract you have to use layman.
-See [[https://github.com/ruediger/VobSub2SRT/issues/13][#13]] for details.
 
 ** Arch AUR
 There also exist a [[https://wiki.archlinux.org/index.php/PKGBUILD][PKGBUILD]] file for Arch Linux in AUR:
 https://aur.archlinux.org/packages/vobsub2srt-git
+
+
 
 * Usage
 vobsub2srt converts subtitles in VobSub (=.idx= / =.sub=) format into subtitles
@@ -143,7 +146,7 @@ vobsub2srt.
 
 * Bug reports
 Please submit bug reports or feature requests to the
-[[https://github.com/BuiltOnLogic/VobSub2SRT/issues][issue tracker on GitHub]].
+[[https://github.com/csingleplus/VobSub2SRT/issues][issue tracker on GitHub]].
 
 If you have problems with a specific subtitle file then please check if
 it works in mplayer first. Also, you may need to replace the palette line
@@ -151,10 +154,7 @@ in your .idx file to this, a plain white-on-black palette for better accuracy.
 
 #+BEGIN_SRC
 	palette: 000000,ffffff,000000,000000,000000,000000,ffffff,000000,000000,000000,000000,ffffff,000000,ffffff,000000,ffffff
-	#+END_SRC
+#+END_SRC
 
 For bug reports please run =vobsub2srt= with the =--verbose= option set to 2,
 and copy and paste the first 50~ lines to the bug report.
-
-* To Do
-- implement preprocessing (first step scaling. Code available in =spudec.c=)

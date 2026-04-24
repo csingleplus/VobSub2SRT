@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 project(vobsub2srt)
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/CMakeModules)
@@ -56,11 +56,10 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_FLAGS "-ansi -pedantic -Wall -Wextra -Wno-long-long")
 
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -mtune=native -march=native -DNDEBUG -fomit-frame-pointer -ffast-math") # TODO -Ofast GCC 4.6
+set(CMAKE_CXX_FLAGS_RELEASE "-O2 -mtune=native -DNDEBUG -fomit-frame-pointer -ffast-math")
 set(CMAKE_C_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
 set(CMAKE_CXX_FLAGS_DEBUG "-g3 -DDEBUG")
 set(CMAKE_C_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
-# TODO RelWithDebInfo MinSizeRel? maybe move -march=native -ffast-math etc. to a different build type
 
 find_package(Threads)
 find_package(Tesseract)
@@ -121,10 +120,10 @@ else()
   set(CPACK_GENERATOR "DEB")
   set(CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
   set(CPACK_PACKAGE_VERSION "${VOBSUB2SRT_VERSION}")
-  set(CPACK_PACKAGE_CONTACT "Rüdiger Sonderfeld <ruediger@c-plusplus.de>")
-  set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/ruediger/VobSub2SRT")
+  set(CPACK_PACKAGE_CONTACT "Christopher Ogloff <chris.ogloff@gmail.com>")
+  set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/csingleplus/VobSub2SRT")
   set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Converts VobSub subtitles (.idx/.srt format) into .srt subtitles.")
-  set(CPACK_PACKAGE_DESCRIPTION "VobSub2SRT is a simple command line program to convert .idx / .sub subtitles\ninto .srt text subtitles by using OCR. It is based on code from the MPlayer\nproject - a really great movie player.\nTesseract is used as OCR software.")
+  set(CPACK_PACKAGE_DESCRIPTION "VobSub2SRT is a simple command line program to convert .idx / .sub subtitles\ninto .srt text subtitles by using OCR. It is based on code from the MPlayer\nproject.\nTesseract is used as OCR software.")
 
   set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/debian/copyright")
   set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.org")
@@ -144,7 +143,7 @@ else()
   include(CPack)
 
   if(ENABLE_PPA)
-    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "any") # can be build on any system
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "any") # can be built on any system
     include(UploadPPA)
   endif()
 endif()

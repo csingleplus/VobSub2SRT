@@ -26,8 +26,30 @@
  * with MPlayer; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
+/* FFmpeg/libavutil licensing information:
 
-// #include "config.h"
+common.h is copyright (c) 2006 Michael Niedermayer <michaelni@gmx.at>
+bswap.h is copyright (C) 2006 by Michael Niedermayer <michaelni@gmx.at>
+intreadwrite.h does not contain a specific copyright notice.
+
+the code is licensed under LGPL 2 with the following license header
+
+FFmpeg is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation; either
+version 2.1 of the License, or (at your option) any later version.
+
+FFmpeg is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public
+License along with FFmpeg; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+*/
+
 #include "mp_msg.h"
 
 #include <errno.h>
@@ -37,14 +59,11 @@
 #include <unistd.h>
 #include <string.h>
 #include <math.h>
-//#include "libvo/sub.h"  // R: no OSD stuff needed
-//#include "libvo/video_out.h" // R: no OSD stuff needed
 
 int sub_pos = 100; // R: copied from libvo/sub.c
 
 #include "spudec.h"
 #include "vobsub.h"
-// #include "libswscale/swscale.h" // R: no swscalar gaussian aamode
 
 #define FFMAX(a,b) ((a) > (b) ? (a) : (b))
 #define FFMIN(a,b) ((a) > (b) ? (b) : (a))
@@ -57,7 +76,7 @@ int sub_pos = 100; // R: copied from libvo/sub.c
    4: uses swscaler gaussian (this is the only one that looks good) R: Not supported (libswscale dependency removed)
  */
 
-int spu_aamode = 3;
+int spu_aamode = 2;
 int spu_alignment = -1;
 float spu_gaussvar = 1.0;
 
@@ -581,20 +600,7 @@ static void spudec_process_control(spudec_handle_t *this, int pts100)
 
 static void spudec_decode(spudec_handle_t *this, int pts100)
 {
-#if 0 // R: OSD stuff removed
-  if (!this->hw_spu)
-    spudec_process_control(this, pts100);
-  else if (pts100 >= 0) {
-    static vo_mpegpes_t packet = { NULL, 0, 0x20, 0 };
-    static vo_mpegpes_t *pkg=&packet;
-    packet.data = this->packet;
-    packet.size = this->packet_size;
-    packet.timestamp = pts100;
-    this->hw_spu->draw_frame((uint8_t**)&pkg);
-  }
-#else
   spudec_process_control(this, pts100);
-#endif
 }
 
 int spudec_changed(void * this)
@@ -623,7 +629,8 @@ void spudec_assemble(void *this, unsigned char *packet, unsigned int len, int pt
     if (spu->packet != NULL) {
       spu->packet_size = len2;
       if (len > len2) {
-	mp_msg(MSGT_SPUDEC,MSGL_WARN,"SPUasm: invalid frag len / len2: %d / %d \n", len, len2);
+	mp_msg(MSGT_SPUDEC,MSGL_WARN,"SPUasm error: Raccoons encountered in stream\n"
+	       "invalid frag len / len2: %d / %d \n", len, len2);
 	return;
       }
       memcpy(spu->packet, packet, len);
@@ -633,7 +640,7 @@ void spudec_assemble(void *this, unsigned char *packet, unsigned int len, int pt
   } else {
     // Continue current fragment
     if (spu->packet_size < spu->packet_offset + len){
-      mp_msg(MSGT_SPUDEC,MSGL_WARN,"SPUasm: invalid fragment\n");
+      mp_msg(MSGT_SPUDEC,MSGL_WARN,"SPUasm: invalid fragment.\n");
       spu->packet_size = spu->packet_offset = 0;
       return;
     } else {
@@ -857,35 +864,6 @@ static void scale_image(int x, int y, scale_pixel* table_x, scale_pixel* table_y
   }
 }
 
-#if 0 // R: removed sws scaling
-static void sws_spu_image(unsigned char *d1, unsigned char *d2, int dw, int dh,
-                          int ds, const unsigned char* s1, unsigned char* s2,
-                          int sw, int sh, int ss)
-{
-	struct SwsContext *ctx;
-	static SwsFilter filter;
-	static int firsttime = 1;
-	static float oldvar;
-	int i;
-
-	if (!firsttime && oldvar != spu_gaussvar) sws_freeVec(filter.lumH);
-	if (firsttime) {
-		filter.lumH = filter.lumV =
-			filter.chrH = filter.chrV = sws_getGaussianVec(spu_gaussvar, 3.0);
-		sws_normalizeVec(filter.lumH, 1.0);
-		firsttime = 0;
-		oldvar = spu_gaussvar;
-	}
-
-	ctx=sws_getContext(sw, sh, PIX_FMT_GRAY8, dw, dh, PIX_FMT_GRAY8, SWS_GAUSS, &filter, NULL, NULL);
-	sws_scale(ctx,&s1,&ss,0,sh,&d1,&ds);
-	for (i=ss*sh-1; i>=0; i--) if (!s2[i]) s2[i] = 255; //else s2[i] = 1;
-	sws_scale(ctx,&s2,&ss,0,sh,&d2,&ds);
-	for (i=ds*dh-1; i>=0; i--) if (d2[i]==0) d2[i] = 1; else if (d2[i]==255) d2[i] = 0;
-	sws_freeContext(ctx);
-}
-#endif
-
 void spudec_draw_scaled(void *me, unsigned int dxs, unsigned int dys, void (*draw_alpha)(int x0,int y0, int w,int h, unsigned char* src, unsigned char *srca, int stride))
 {
   spudec_handle_t *spu = me;
@@ -914,6 +892,12 @@ void spudec_draw_scaled(void *me, unsigned int dxs, unsigned int dys, void (*dra
 	spu->scaled_start_row = spu->start_row * scaley / 0x100;
 	spu->scaled_width = spu->width * scalex / 0x100;
 	spu->scaled_height = spu->height * scaley / 0x100;
+	if (spu->scaled_width == 0 || spu->scaled_height == 0) {
+	  mp_msg(MSGT_SPUDEC, MSGL_FATAL,
+		 "Fatal: scaled image resulted in null dimensions! (%u x %u from %u x %u\n",
+		 spu->scaled_width, spu->scaled_height, spu->width, spu->height);
+	  goto nothing_to_do;
+	}
 	/* Kludge: draw_alpha needs width multiple of 8 */
 	spu->scaled_stride = (spu->scaled_width + 7) & ~7;
 	if (spu->scaled_image_size < spu->scaled_stride * spu->scaled_height) {
@@ -938,13 +922,6 @@ void spudec_draw_scaled(void *me, unsigned int dxs, unsigned int dys, void (*dra
 	  }
 	  switch(spu_aamode&15) {
 	  case 4:
-#if 0 // R: no swscalar gaussian aa supported
-	  sws_spu_image(spu->scaled_image, spu->scaled_aimage,
-		  spu->scaled_width, spu->scaled_height, spu->scaled_stride,
-		  spu->image, spu->aimage, spu->width, spu->height, spu->stride);
-#else
-          mp_msg(MSGT_SPUDEC, MSGL_FATAL, "Fatal: no swsscalar gaussian aa supported");
-#endif
 	  break;
 	  case 3:
 	  table_x = calloc(spu->scaled_width, sizeof(scale_pixel));
@@ -1225,10 +1202,6 @@ void spudec_update_palette(void * this, unsigned int *palette)
   spudec_handle_t *spu = this;
   if (spu && palette) {
     memcpy(spu->global_palette, palette, sizeof(spu->global_palette));
-#if 0 // R: OSD stuff removed
-    if(spu->hw_spu)
-      spu->hw_spu->control(VOCTRL_SET_SPU_PALETTE,spu->global_palette);
-#endif
   }
 }
 
@@ -1245,27 +1218,8 @@ void spudec_set_font_factor(void * this, double factor)
 
 /*
 code taken from ffmpeg/libavutil. intreadwrite.h and bswap.h
-
-common.h is copyright (c) 2006 Michael Niedermayer <michaelni@gmx.at>
-bswap.h is copyright (C) 2006 by Michael Niedermayer <michaelni@gmx.at>
-intreadwrite.h does not contain a specific copyright notice.
-
-the code is licensed under LGPL 2 with the following license header
-
-FFmpeg is free software; you can redistribute it and/or
-modify it under the terms of the GNU Lesser General Public
-License as published by the Free Software Foundation; either
-version 2.1 of the License, or (at your option) any later version.
-
-FFmpeg is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-Lesser General Public License for more details.
-
-You should have received a copy of the GNU Lesser General Public
-License along with FFmpeg; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
- */
+see first page for license information.
+*/
 
 union unaligned_32 { uint32_t l; } __attribute__((packed)) __attribute__((may_alias));
 #define AV_RN32(p) (((const union unaligned_32 *) (p))->l)
@@ -1285,6 +1239,8 @@ static __attribute__((always_inline)) inline uint32_t __attribute__((const)) av_
 
 #endif // AV_HAVE_BIG_ENDIAN
 #endif // AV_RB32
+
+/* end ffmpeg/libavutil code */
 
 static void spudec_parse_extradata(spudec_handle_t *this,
                                    uint8_t *extradata, int extradata_len)
@@ -1322,8 +1278,8 @@ static void spudec_parse_extradata(spudec_handle_t *this,
         pal[i] = vobsub_palette_to_yuv(pal[i]);
       this->auto_palette = 0;
     }
-    if (!strncasecmp(ptr, "forced subs: on", 15))
-      this->forced_subs_only = 1;
+    if (!strncasecmp(ptr, "forced subs: not on", 15))
+      this->forced_subs_only = 0;
     if (!strncmp(ptr, "custom colors: ON, tridx: ", 26) &&
         sscanf(ptr + 26, "%x, colors: %x, %x, %x, %x",
                &tridx, cuspal+0, cuspal+1, cuspal+2, cuspal+3) == 5) {
@@ -1414,6 +1370,7 @@ void spudec_free(void *this)
   }
 }
 
+/*
 #if 0 // R: not necessary
 void spudec_set_hw_spu(void *this, const vo_functions_t *hw_spu)
 {
@@ -1424,7 +1381,7 @@ void spudec_set_hw_spu(void *this, const vo_functions_t *hw_spu)
   hw_spu->control(VOCTRL_SET_SPU_PALETTE,spu->global_palette);
 }
 #endif
-
+*/
 #define MP_NOPTS_VALUE (-1LL<<63) //both int64_t and double should be able to represent this exactly
 
 /**
@@ -1480,8 +1437,10 @@ void spudec_set_paletted(void *this, const uint8_t *pal_img, int pal_stride,
 }
 
 // R: added to extract data
-void spudec_get_data(void *this, const unsigned char **image, size_t *image_size, unsigned *width, unsigned *height,
-                     unsigned *stride, unsigned *start_pts, unsigned *end_pts)
+// C: updated to add scaling functions.
+void spudec_get_data(void *this, const unsigned char **image, size_t *image_size,
+		     unsigned *width, unsigned *height, unsigned *stride,
+		     unsigned *start_pts, unsigned *end_pts)
 {
   spudec_handle_t *spu = this;
   *image = spu->image;
@@ -1491,4 +1450,28 @@ void spudec_get_data(void *this, const unsigned char **image, size_t *image_size
   *stride = spu->stride;
   *start_pts = spu->start_pts;
   *end_pts = spu->end_pts;
+}
+
+void spudec_get_data_scaled(void *this, const unsigned char **scaled_image, size_t *scaled_image_size,
+			    unsigned *width, unsigned *height, unsigned *stride, unsigned *start_pts,
+			    unsigned *end_pts, unsigned *scaled_width, unsigned *scaled_height,
+			    unsigned *scaled_stride) {
+  
+  spudec_handle_t *spu = this;
+  *scaled_image = spu->scaled_image;
+  *scaled_image_size = spu->scaled_image_size;
+  *width = spu->width;
+  *height = spu->height;
+  *stride = spu->stride;
+  *start_pts = spu->start_pts;
+  *end_pts = spu->end_pts;
+  *scaled_width = spu->scaled_width;
+  *scaled_height = spu->scaled_height;
+  *scaled_stride = spu->scaled_stride;
+}
+
+void spudec_get_frame_size(void *this, unsigned *frame_width, unsigned *frame_height) {
+  spudec_handle_t *spu = this;
+  if (frame_width) *frame_width = spu->orig_frame_width;
+  if (frame_height) *frame_height = spu->orig_frame_height;
 }

@@ -407,15 +407,12 @@ static bool compare(char const *lhs, char const *rhs) {
 }
 
 char const *iso639_1_to_639_3(char const *lang) {
-  assert(sizeof(iso639_1) == sizeof(iso639_3));
-  if (!lang || std::strlen(lang) != 2) {
-    return nullptr;
+  assert(sizeof(iso639_1) == sizeof(iso639_3)); 
+  char const *const * i = std::lower_bound(iso639_1, iso639_1_end, lang, compare); // binary search
+  if(i == iso639_1_end) {
+    return 0x0;
   }
-
-  char const *const *i = std::lower_bound(iso639_1, iso639_1_end, lang, compare);
-  if (i == iso639_1_end || std::strcmp(*i, lang) != 0) {
-    return nullptr;
+  else {
+    return iso639_3[i - iso639_1];
   }
-
-  return iso639_3[i - iso639_1];
 }

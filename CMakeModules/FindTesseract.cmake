@@ -44,17 +44,6 @@ if(TESSERACT_DATA_PATH)
 endif()
 
 set(CMAKE_REQUIRED_INCLUDES ${Tesseract_INCLUDE_DIR})
-check_cxx_source_compiles(
-  "#include \"tesseract/baseapi.h\"
-   using namespace tesseract;
-   int main() {
-   }"
-  TESSERACT_NAMESPACE)
-if(TESSERACT_NAMESPACE)
-  add_definitions("-DCONFIG_TESSERACT_NAMESPACE")
-else()
-  message(WARNING "You are using an old Tesseract version. Support for Tesseract 2 is deprecated and will be removed in the future!")
-endif()
 list(REMOVE_ITEM CMAKE_REQUIRED_INCLUDES ${Tesseract_INCLUDE_DIR})
 
 if(BUILD_STATIC)

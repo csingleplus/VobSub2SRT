@@ -2,4 +2,9 @@ The code in this folder is copied from the MPlayer project (http://www.mplayerhq
 
 I added comments prefixed with R: to mark changes from the original MPlayer code.
 
-2026-03-03: Removed ancient unrar code. -C
+/*****************************************************/
+2026-03-03: Removed ancient unrar code.               *
+2026-04-23: Fixed memory leak in vobsub_open (lineptr)*
+						      *
+-Christopher Ogloff				      *
+\*****************************************************/

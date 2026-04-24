@@ -20,12 +20,11 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
-
-#if 0 // R: no iconv, charset stuff
+/*
 #include "config.h"
+#include "libavutil/avstring.h" // C: Not used in vobsub2srt
 #include "osdep/getch2.h"
-#endif
-
+*/
 #ifdef CONFIG_ICONV
 #include <iconv.h>
 #include <errno.h>
@@ -43,8 +42,12 @@ int mp_msg_color = 0;
 int mp_msg_module = 0;
 #ifdef CONFIG_ICONV
 char *mp_msg_charset = NULL;
+// only used to simplify freeing get_term_charset
+// result, even when it was overwritten by command-line options.
+char *term_charset_ptr_to_free = NULL;
 static char *old_charset = NULL;
 static iconv_t msgiconv;
+static iconv_t inv_msgiconv = (iconv_t)(-1);
 #endif
 
 const char* filename_recode(const char* filename)
@@ -52,7 +55,6 @@ const char* filename_recode(const char* filename)
 #if !defined(CONFIG_ICONV) || !defined(MSG_CHARSET)
     return filename;
 #else
-    static iconv_t inv_msgiconv = (iconv_t)(-1);
     static char recoded_filename[MSGSIZE_MAX];
     size_t filename_len, max_path;
     char* precoded;
@@ -68,7 +70,7 @@ const char* filename_recode(const char* filename)
     filename_len = strlen(filename);
     max_path = MSGSIZE_MAX - 4;
     precoded = recoded_filename;
-    if (iconv(inv_msgiconv, &filename, &filename_len,
+    if (iconv(inv_msgiconv, (char **)&filename, &filename_len,
               &precoded, &max_path) == (size_t)(-1) && errno == E2BIG) {
         precoded[0] = precoded[1] = precoded[2] = '.';
         precoded += 3;
@@ -80,17 +82,30 @@ const char* filename_recode(const char* filename)
 
 void mp_msg_init(void){
     int i;
-#if 0 // R: don't check MPLAYER_VERBOSE environment var
     char *env = getenv("MPLAYER_VERBOSE");
     if (env)
         verbose = atoi(env);
-#endif
     for(i=0;i<MSGT_MAX;i++) mp_msg_levels[i] = -2;
     mp_msg_levels[MSGT_IDENTIFY] = -1; // no -identify output by default
 #ifdef CONFIG_ICONV
     mp_msg_charset = getenv("MPLAYER_CHARSET");
-    if (!mp_msg_charset)
-      mp_msg_charset = get_term_charset();
+    if (!mp_msg_charset) {
+      free(term_charset_ptr_to_free); // could assert that is is NULL instead
+      mp_msg_charset = term_charset_ptr_to_free = get_term_charset();
+    }
+#endif
+}
+
+void mp_msg_uninit(void)
+{
+#ifdef CONFIG_ICONV
+    if (old_charset) {
+        free(old_charset);
+        iconv_close(msgiconv);
+    }
+    if (inv_msgiconv != (iconv_t)(-1)) iconv_close(inv_msgiconv);
+    free(term_charset_ptr_to_free);
+    term_charset_ptr_to_free = NULL;
 #endif
 }
 
@@ -182,6 +197,12 @@ static void print_msg_module(FILE* stream, int mod)
 
 void mp_msg(int mod, int lev, const char *format, ... ){
     va_list va;
+    va_start(va, format);
+    mp_msg_va(mod, lev, format, va);
+    va_end(va);
+}
+
+void mp_msg_va(int mod, int lev, const char *format, va_list va){
     char tmp[MSGSIZE_MAX];
     FILE *stream = lev <= MSGL_WARN ? stderr : stdout;
     static int header = 1;
@@ -190,9 +211,7 @@ void mp_msg(int mod, int lev, const char *format, ... ){
     size_t len;
 
     if (!mp_msg_test(mod, lev)) return; // do not display
-    va_start(va, format);
     vsnprintf(tmp, MSGSIZE_MAX, format, va);
-    va_end(va);
     tmp[MSGSIZE_MAX-2] = '\n';
     tmp[MSGSIZE_MAX-1] = 0;
 
@@ -220,7 +239,7 @@ void mp_msg(int mod, int lev, const char *format, ... ){
         *out++ = *in++;
         outlen--; inlen--;
       }
-      strncpy(tmp, tmp2, MSGSIZE_MAX);
+      memcpy(tmp, tmp2, MSGSIZE_MAX);
       tmp[MSGSIZE_MAX-1] = 0;
       tmp[MSGSIZE_MAX-2] = '\n';
       }
