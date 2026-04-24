@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
     opts.add_unnamed(subname, "subname", "name of the subtitle files without .idx/.sub ending.");
     if(not opts.parse_cmd(argc, argv) or subname.empty()) {
       std::cerr << "You may want to check 'vobsub2srt --help', or provide a subtitle name without the .idx/.sub extension.\n";
-      return 1;
+      return 0;
     }
   }
   
