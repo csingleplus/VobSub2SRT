@@ -13,12 +13,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
-    - name: switch-lang
-      run: sudo localectl set-locale LANG=en_US.UTF-8
     - name: update-apt
       run: sudo apt update
     - name: install-deps
-      run: sudo apt install libtesseract-dev tesseract-ocr-eng libtiff5-dev libjpeg-dev libpng-dev libwebp-dev -y
+      run: sudo apt install libtesseract-dev tesseract-ocr-eng g++ gcc cmake -y
     - name: configure
       run: ./configure
     - name: make
