@@ -9,13 +9,13 @@ vobsub2srt is released under the GPL3+ license. The MPlayer code included is
 GPL2+ licensed.
 
 The quality of the OCR depends on the text in the subtitles. Currently the code
-does not use any preprocessing.  But I'm currently looking into adding filters
-and scaling options to improve the OCR. You can try adjusting --min-width and
---min-height, or --y-threshold. Otherwise correct mistakes in the =.srt=
-files with a text editor or a special subtitle editor.
+does not use any preprocessing. Use the latest version for better results.
+You can try adjusting =--min-width= and =--min-height=, or =--y-threshold=.
+The =--blacklist= option can be useful in some cases too. Otherwise correct
+mistakes in the =.srt= files with a text editor or a subtitle editor.
 
 * Tested with:
-- Debian GNU/Linux 5 "Lenny" (fully updated final point release, details slipped my mind)
+- Debian GNU/Linux 5 "Lenny" (fully updated final point release)
 - Debian GNU/Linux 6.0.10 "Squeeze"
 - Fedora 33
 
@@ -24,10 +24,10 @@ See master branch for:
 - Debian 9-14
 - Fedora 34-44+Rawhide
 
+
 * Building
 You will need Tesseract, CMake 2.6.0+ and GCC 4.3+ to build it, as well as a few imaging libraries.
 On a Debian-based system you can install the dependencies with:
-
 
 #+BEGIN_EXAMPLE
   sudo apt-get install libtesseract-dev build-essential cmake pkg-config
@@ -49,6 +49,8 @@ Note that the support for tesseract below version 2.4 is deprecated and may not 
 
 This should install the program vobsub2srt to =/usr/local/bin=.  You can
 uninstall vobsub2srt with =sudo make uninstall=.
+
+
 ** Static binary
 I recommend using the dynamic binary! However if you really need a static binary
 you can add the flag =-DBUILD_STATIC=ON= to the =./configure= call.  But be
@@ -69,7 +71,7 @@ running =ldd /usr/lib/liblept.so= (or whatever the path to leptonica is on your
 system). Add those dependencies to =CMakeModules/FindTesseract.cmake=.
 
 ** Ubuntu PPA and .deb packages
-*NOTE: This PPA has not been updated since 2013*
+*NOTE: This PPA has not been updated since 2013. Please build from source.*
 
 I have created a [[https://launchpad.net/~ruediger-c-plusplus/+archive/vobsub2srt][PPA (Personal Package Archive)]] to make installation on
 Ubuntu easy.  Simply add the PPA to your apt-get sources and run an update and
@@ -89,13 +91,15 @@ You can also create a source package and upload it to your own PPA by using the
 =UploadPPA.cmake=. But this is only recommended for people experienced with
 cmake and creating Debian packages.
 
+** NOTE: Homebrew and ebuilds are currently unsupported.
+
 ** Homebrew
 Vobsub2srt contains a formula for [[http://mxcl.github.com/homebrew/][Homebrew]] (a package manager for OS X).  It can
 be installed by using the following commands:
 
 #+BEGIN_EXAMPLE
   brew install --with-all-languages tesseract
-  brew install --HEAD https://github.com/ruediger/VobSub2SRT/raw/master/packaging/vobsub2srt.rb
+  brew install --HEAD https://github.com/csingleplus/VobSub2SRT/raw/legacy/packaging/vobsub2srt.rb
 #+END_EXAMPLE
 
 ** Gentoo ebuild
@@ -104,7 +108,7 @@ emerge with the following steps
 
 #+BEGIN_EXAMPLE
   sudo mkdir -p /usr/local/portage/media-video/vobsub2srt/
-  wget https://github.com/ruediger/VobSub2SRT/raw/master/packaging/vobsub2srt-9999.ebuild
+  wget https://github.com/csingleplus/VobSub2SRT/raw/legacy/packaging/vobsub2srt-9999.ebuild
   sudo mv vobsub2srt-9999.ebuild /usr/local/portage/media-video/vobsub2srt/
   cd /usr/local/portage/media-video/vobsub2srt/
   sudo ebuild vobsub2srt-999.ebuild digest
@@ -151,16 +155,14 @@ Please submit bug reports or feature requests to the
 uncomfortable creating one then feel free to send an e-mail to
 <ruediger@c-plusplus.de> instead.
 
-This fork is currently maintained at [[https://github.com/BuiltOnLogic/]].
-Issues may be brought up here: [[https://github.com/BuiltOnLogic/VobSub2SRT/issues]],
-but please note this is a work in progress and subject to change.
+This fork is currently maintained at [[https://github.com/csingleplus/]],
+however this branch exists purely for compatibility with older systems.
 
 If you have problems with a specific subtitle file then please check if
-it works in mplayer or mpv first.  If it does not then please report the bug to
-mplayer/mpv as well and link to the bug report.
+it works in mplayer or mpv first.
 
 For bug reports please run =vobsub2srt= with the =--verbose= option and copy
-and paste the full output to the bug report.
+and paste the first ~50 lines to the bug report.
 
 * Contributors
 Most code is from the MPlayer project.
