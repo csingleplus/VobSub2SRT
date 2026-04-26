@@ -93,8 +93,7 @@ cmake and creating Debian packages.
 
 
 ** This is also no longer maintained. I am aware of a fork with a fixed formula,
-so feel free to seek that out, otherwise just build from source or stop using a
-Mac.
+so feel free to seek that out, otherwise just build from source.
 
 
 ** Homebrew
