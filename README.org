@@ -30,7 +30,7 @@ You need Tesseract, CMake and GCC to build =vobsub2srt=.
 With a Debian-based distribution, you can install the dependencies with:
 
 #+BEGIN_EXAMPLE
-  sudo apt-get install libtesseract-dev build-essential cmake pkg-config
+  sudo apt-get install libtiff5-dev libtesseract-dev build-essential cmake pkg-config
 #+END_EXAMPLE
 
 You also need to install the tesseract data for the languages you want to use.
