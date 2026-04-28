@@ -19,6 +19,7 @@
 
 #include "cmd_options.h++"
 #include <iostream>
+#include <iomanip>
 #include <cstring>
 #include <cstdlib>
 #include <vector>
@@ -165,17 +166,49 @@ bool cmd_options::parse_cmd(int argc, char **argv) const {
 }
 
 void cmd_options::help(char const *progname) const {
-  cerr << "usage: " << progname;
-  for(std::vector<option>::const_iterator i = pimpl->options.begin(); i != pimpl->options.end(); ++i) {
-    cerr << " --" << i->name;
-  }
-  if(handle_help) {
-    cerr << " --help";
-  }
+  cerr << "Usage:\n"
+       << "  " << progname << " [options]";
   for(std::vector<unnamed>::const_iterator i = pimpl->unnamed_args.begin(); i != pimpl->unnamed_args.end(); ++i) {
     cerr << " <" << i->name << '>';
   }
   cerr << "\n\n";
+  /*
+  cerr << "usage: " << progname;
+  for(std::vector<option>::const_iterator i = pimpl->options.begin(); i != pimpl->options.end(); ++i) {
+    cerr << " --" << i->name;
+  }
+  */
+  cerr << "Options:\n";
+for(std::vector<option>::const_iterator i = pimpl->options.begin(); i != pimpl->options.end(); ++i) {
+  std::string opt = "  --";
+  opt += i->name;
+
+  if(i->type != option::Bool) {
+    opt += " <arg>";
+  }
+
+  if(i->short_name != '\0') {
+    opt += " (-";
+    opt += i->short_name;
+    opt += ")";
+  }
+
+  cerr << left << setw(32) << opt << i->description << '\n';
+}
+
+if(handle_help) {
+  //  cerr << left << setw(32) << "  --help (-h)" << "show help information\n";
+}
+/*
+  if(handle_help) {
+    cerr << " --help";
+  }
+*/
+  for(std::vector<unnamed>::const_iterator i = pimpl->unnamed_args.begin(); i != pimpl->unnamed_args.end(); ++i) {
+    cerr << " <" << i->name << '>' << "\t\t\tname of subtitle without .idx/.sub extension";
+  }
+  cerr << "\n\n";
+  /*
   for(std::vector<option>::const_iterator i = pimpl->options.begin(); i != pimpl->options.end(); ++i) {
     cerr << "\t--" << i->name;
     if(i->type != option::Bool) {
@@ -186,11 +219,13 @@ void cmd_options::help(char const *progname) const {
     }
     cerr << "\t" << i->description << '\n';
   }
+  
   if(handle_help) {
-    cerr << "\t--help (or -h)\tshow help information\n";
+    //    cerr << "\t--help (or -h)\tshow help information\n";
   }
   for(std::vector<unnamed>::const_iterator i = pimpl->unnamed_args.begin(); i != pimpl->unnamed_args.end(); ++i) {
     cerr << "\t<" << i->name << ">\t" << i->description << '\n';
   }
+  */
   exit = true;
 }

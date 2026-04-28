@@ -17,6 +17,6 @@ if(BUILD_STATIC)
                         LINK_SEARCH_END_STATIC ON
                         LINK_FLAGS -static)
 endif()
-target_link_libraries(vobsub2srt mplayer ${Libavutil_LIBRARIES} ${Tesseract_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(vobsub2srt mplayer ${Libavutil_LIBRARIES} ${Leptonica_LIBRARIES} ${Tesseract_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 install(TARGETS vobsub2srt RUNTIME DESTINATION ${INSTALL_EXECUTABLES_PATH})

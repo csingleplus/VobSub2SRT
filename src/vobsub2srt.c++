@@ -26,6 +26,10 @@
 // Tesseract OCR
 #include <tesseract/baseapi.h>
 
+// Leptonica image manip.
+#include <leptonica/allheaders.h>
+#include <leptonica/alltypes.h>
+
 #include <memory>
 #include <cstdlib>
 #include <sys/stat.h>
@@ -46,7 +50,7 @@
 // mplayer draw_alpha function
 void draw_alpha(int x0, int y0, int w, int h, unsigned char* src, unsigned char *srca, int stride);
 
-// Dummy draw_alpha for scaling
+// Dummy draw_alpha for scaling (I think this is dead code, and the above is used. Was a long night.)
 static void dummy_draw_alpha(int x0, int y0, int w, int h, unsigned char* src, unsigned char *srca, int stride) {
     // create a dummy output to trigger the allocation in spudec_draw_scaled.
     (void)x0; (void)y0; (void)w; (void)h;
@@ -129,7 +133,7 @@ int main(int argc, char **argv) {
       add_option("show", show, "Show subtitles being written.").
       add_option("dump-images", dump_images, "dump subtitles as image files (<subname>-<number>.pgm).").
       add_option("verbose", verb, "extra (mplayer) verbosity, on a scale of 1 to 3.").
-      add_option("ifo", ifo_file, "name of the ifo file. default: tries to open <subname>.ifo. ifo file is optional\nbut may fix empty palette issues!").
+      add_option("ifo", ifo_file, "name of the ifo file. default: tries to open <subname>.ifo. ifo file is optional\n\t\t\t\tbut may fix empty palette issues!").
       add_option("lang", lang, "language to select", 'l').
       add_option("langlist", list_languages, "list languages and exit").
       add_option("index", index, "subtitle index", 'i').
@@ -141,8 +145,8 @@ int main(int argc, char **argv) {
       add_option("min-height", min_height, "Minimum height in pixels to consider a subpicture for OCR (Default: 1)");
     
     opts.add_unnamed(subname, "subname", "name of the subtitle files without .idx/.sub ending.");
-    if(not opts.parse_cmd(argc, argv) or subname.empty()) {
-      std::cerr << "You may want to check 'vobsub2srt --help', or provide a subtitle name without the .idx/.sub extension.\n";
+    if(!opts.parse_cmd(argc, argv)) {
+      //      std::cerr << "You may want to check 'vobsub2srt --help', or provide a subtitle name without the .idx/.sub extension.\n";
       return 0;
     }
   }
@@ -271,8 +275,8 @@ int main(int argc, char **argv) {
         unsigned int frame_width = 0, frame_height = 0;
         spudec_get_frame_size(spu, &frame_width, &frame_height);
 
-        unsigned int target_width = frame_width ? frame_width * 2 : width * 2;
-        unsigned int target_height = frame_height ? frame_height * 2 : height * 2;
+        unsigned int target_width = frame_width ? frame_width * 4 : width * 4;
+        unsigned int target_height = frame_height ? frame_height * 4 : height * 4;
 
         // Trigger scaled-image generation inside spudec using frame-based scaling.
         spudec_draw_scaled(spu, target_width, target_height, dummy_draw_alpha);
@@ -309,7 +313,26 @@ int main(int argc, char **argv) {
         // Use appropriate image based on scaling mode
         unsigned char const *img = scaled ? scaled_image : image;
         size_t final_size = scaled ? scaled_image_size : image_size;
-      
+
+	// The Leptonica experiment.
+
+	PIX *piximg = pixCreate(width, height, 8);
+	if(!piximg) {
+	  std::cerr << "Leptonica failed to initialize image! (pixCreate):" << width << "x"
+		    << height << '\n';
+	} else {
+	  for (unsigned int y = 0; y < height; ++y) {
+	    unsigned const char *src = img + y * stride;
+	    unsigned char *dst = reinterpret_cast<unsigned char *>(pixGetData(piximg)) + y
+	      * pixGetWpl(piximg) * 4;
+	    memcpy(dst, src, width);
+	      }
+	}
+	
+	PIX *sclimg = pixScale(piximg, 2.0, 2.0);
+	//pixDestroy(&sclimg);
+	//pixDestroy(&piximg);
+	//
         if(dump_images) {
           dump_pgm(subname, sub_counter, scaled ? sclwidth : width, scaled ? sclheight : height,
                    scaled ? scaled_stride : stride,
@@ -334,6 +357,8 @@ int main(int argc, char **argv) {
             text.reset(new char[len + 1]);
             std::strcpy(text.get(), tesseract_text);
             delete[] tesseract_text;
+	    pixDestroy(&sclimg);
+	    pixDestroy(&piximg);
           }
         
           if (text) {

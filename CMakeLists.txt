@@ -6,6 +6,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/CMakeModules)
 if(NOT CMAKE_BUILD_TYPE)
     set(
         CMAKE_BUILD_TYPE
+	Debug
         Release
         CACHE
         STRING
@@ -61,8 +62,9 @@ set(CMAKE_C_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
 set(CMAKE_CXX_FLAGS_DEBUG "-g3 -DDEBUG")
 set(CMAKE_C_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
 
+find_package(Leptonica REQUIRED)
 find_package(Threads)
-find_package(Tesseract)
+find_package(Tesseract REQUIRED)
 
 add_subdirectory(mplayer)
 add_subdirectory(src)
