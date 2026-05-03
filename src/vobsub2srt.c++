@@ -26,10 +26,7 @@
 // Tesseract OCR
 #include <tesseract/baseapi.h>
 
-// Leptonica image manip.
-#include <leptonica/allheaders.h>
-#include <leptonica/alltypes.h>
-
+// Builtins
 #include <memory>
 #include <cstdlib>
 #include <sys/stat.h>
@@ -44,6 +41,7 @@
 #include <cstdio>
 #include <vector>
 
+// VobSub2SRT helpers
 #include "langcodes.h++"
 #include "cmd_options.h++"
 
@@ -314,25 +312,6 @@ int main(int argc, char **argv) {
         unsigned char const *img = scaled ? scaled_image : image;
         size_t final_size = scaled ? scaled_image_size : image_size;
 
-	// The Leptonica experiment.
-
-	PIX *piximg = pixCreate(width, height, 8);
-	if(!piximg) {
-	  std::cerr << "Leptonica failed to initialize image! (pixCreate):" << width << "x"
-		    << height << '\n';
-	} else {
-	  for (unsigned int y = 0; y < height; ++y) {
-	    unsigned const char *src = img + y * stride;
-	    unsigned char *dst = reinterpret_cast<unsigned char *>(pixGetData(piximg)) + y
-	      * pixGetWpl(piximg) * 4;
-	    memcpy(dst, src, width);
-	      }
-	}
-	
-	PIX *sclimg = pixScale(piximg, 2.0, 2.0);
-	//pixDestroy(&sclimg);
-	//pixDestroy(&piximg);
-	//
         if(dump_images) {
           dump_pgm(subname, sub_counter, scaled ? sclwidth : width, scaled ? sclheight : height,
                    scaled ? scaled_stride : stride,
@@ -357,8 +336,6 @@ int main(int argc, char **argv) {
             text.reset(new char[len + 1]);
             std::strcpy(text.get(), tesseract_text);
             delete[] tesseract_text;
-	    pixDestroy(&sclimg);
-	    pixDestroy(&piximg);
           }
         
           if (text) {
