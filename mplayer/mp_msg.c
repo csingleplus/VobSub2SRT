@@ -22,7 +22,7 @@
 #include <string.h>
 /*
 #include "config.h"
-#include "libavutil/avstring.h" // C: Not used in vobsub2srt
+//moved from libavutil/avstring.h
 #include "osdep/getch2.h"
 */
 #ifdef CONFIG_ICONV

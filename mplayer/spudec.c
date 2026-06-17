@@ -51,7 +51,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
 #include "mp_msg.h"
-
+#include <inttypes.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -243,7 +243,7 @@ static inline void spudec_cut_image(spudec_handle_t *this)
 
 static int spudec_alloc_image(spudec_handle_t *this, int stride, int height)
 {
-  if (this->width > stride) // just a safeguard
+  if (this->width > (unsigned int)stride) // just a safeguard
     this->width = stride;
   this->stride = stride;
   this->height = height;
@@ -314,7 +314,7 @@ static int apply_palette_crop(spudec_handle_t *this,
     color = (color >> 16) & 0xff;
     // convert to MPlayer-style gray/alpha palette
     color = FFMIN(color, alpha);
-    pal[i] = (-alpha << 8) | color;
+    pal[i] = ((256 - alpha) << 8) | color;
   }
   src = this->pal_image + crop_y * this->pal_width + crop_x;
   pal2gray_alpha(pal, src, this->pal_width,
@@ -449,7 +449,7 @@ static void compute_palette(spudec_handle_t *this, packet_t *packet)
 
 static void spudec_process_control(spudec_handle_t *this, int pts100)
 {
-  int a,b,c,d; /* Temporary vars */
+  unsigned int a,b,c,d; /* Temporary vars */
   unsigned int date, type;
   unsigned int off;
   unsigned int start_off = 0;
@@ -482,7 +482,7 @@ static void spudec_process_control(spudec_handle_t *this, int pts100)
 	/* Menu ID, 1 byte */
 	mp_msg(MSGT_SPUDEC,MSGL_DBG2,"Menu ID\n");
         /* shouldn't a Menu ID type force display start? */
-	start_pts = pts100 < 0 && -pts100 >= date ? 0 : pts100 + date;
+	start_pts = pts100 < 0 && (unsigned int)(-pts100) >= date ? 0 : pts100 + date;
 	end_pts = UINT_MAX;
 	display = 1;
 	this->is_forced_sub=~0; // current subtitle is forced
@@ -490,7 +490,7 @@ static void spudec_process_control(spudec_handle_t *this, int pts100)
       case 0x01:
 	/* Start display */
 	mp_msg(MSGT_SPUDEC,MSGL_DBG2,"Start display!\n");
-	start_pts = pts100 < 0 && -pts100 >= date ? 0 : pts100 + date;
+	start_pts = pts100 < 0 && (unsigned int)(-pts100) >= date ? 0 : pts100 + date;
 	end_pts = UINT_MAX;
 	display = 1;
 	this->is_forced_sub=0;
@@ -498,7 +498,7 @@ static void spudec_process_control(spudec_handle_t *this, int pts100)
       case 0x02:
 	/* Stop display */
 	mp_msg(MSGT_SPUDEC,MSGL_DBG2,"Stop display!\n");
-	end_pts = pts100 < 0 && -pts100 >= date ? 0 : pts100 + date;
+	end_pts = pts100 < 0 && (unsigned int)(-pts100) >= date ? 0 : pts100 + date;
 	break;
       case 0x03:
 	/* Palette */
@@ -572,7 +572,7 @@ static void spudec_process_control(spudec_handle_t *this, int pts100)
       continue;
     if (end_pts == UINT_MAX && start_off != next_off) {
       end_pts = get_be16(this->packet + next_off) * 1024;
-      end_pts = 1 - pts100 >= end_pts ? 0 : pts100 + end_pts - 1;
+      end_pts = (unsigned int)(1 - pts100) >= end_pts ? 0 : pts100 + end_pts - 1;
     }
     if (end_pts > 0) {
       packet_t *packet = calloc(1, sizeof(packet_t));
@@ -745,7 +745,7 @@ void spudec_set_forced_subs_only(void * const this, const unsigned int flag)
   }
 }
 
-void spudec_draw(void *this, void (*draw_alpha)(int x0,int y0, int w,int h, unsigned char* src, unsigned char *srca, int stride))
+void spudec_draw(void *this, void (*draw_alpha)(int x0, int y0, int w, int h, unsigned char* src, unsigned char *srca, int stride))
 {
     spudec_handle_t *spu = this;
     if (spudec_visible(spu))
@@ -826,7 +826,7 @@ static void scale_table(unsigned int start_src, unsigned int start_tar, unsigned
   }
   src_step = (delta_src << 16) / delta_tar >>1;
   for (t = 0; t<=delta_tar; src += (src_step << 1), t++){
-    table[t].position= FFMIN(src >> 16, end_src - 1);
+    table[t].position= FFMIN((unsigned int)(src >> 16), end_src - 1);
     table[t].right_down = src & 0xffff;
     table[t].left_up = 0x10000 - table[t].right_down;
   }
@@ -864,7 +864,7 @@ static void scale_image(int x, int y, scale_pixel* table_x, scale_pixel* table_y
   }
 }
 
-void spudec_draw_scaled(void *me, unsigned int dxs, unsigned int dys, void (*draw_alpha)(int x0,int y0, int w,int h, unsigned char* src, unsigned char *srca, int stride))
+void spudec_draw_scaled(void *me, unsigned int dxs, unsigned int dys, void (*draw_alpha)(int x0, int y0, int w, int h, unsigned char* src, unsigned char *srca, int stride))
 {
   spudec_handle_t *spu = me;
   scale_pixel *table_x;
@@ -1278,8 +1278,8 @@ static void spudec_parse_extradata(spudec_handle_t *this,
         pal[i] = vobsub_palette_to_yuv(pal[i]);
       this->auto_palette = 0;
     }
-    if (!strncasecmp(ptr, "forced subs: not on", 15))
-      this->forced_subs_only = 0;
+    if (!strncasecmp(ptr, "forced subs: on", 15))
+      this->forced_subs_only = 1;
     if (!strncmp(ptr, "custom colors: ON, tridx: ", 26) &&
         sscanf(ptr + 26, "%x, colors: %x, %x, %x, %x",
                &tridx, cuspal+0, cuspal+1, cuspal+2, cuspal+3) == 5) {
@@ -1382,7 +1382,7 @@ void spudec_set_hw_spu(void *this, const vo_functions_t *hw_spu)
 }
 #endif
 */
-#define MP_NOPTS_VALUE (-1LL<<63) //both int64_t and double should be able to represent this exactly
+#define MP_NOPTS_VALUE (INT64_MIN) //both int64_t and double should be able to represent this exactly
 
 /**
  * palette must contain at least 256 32-bit entries, otherwise crashes

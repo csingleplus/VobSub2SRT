@@ -1,18 +1,22 @@
-.TH vobsub2srt 1 "28 March 2026"
+.TH vobsub2srt 1.2 "17 June 2026"
 .SH NAME
 vobsub2srt \- converts vobsub (.idx/.sub) into .srt subtitles
 .SH SYNOPSIS
 \fBvobsub2srt\fR [\fIOPTION\fR] \fIFILENAME\fR
 .SH DESCRIPTION
 .PP
-vobsub2srt converts subtitles in vobsub (.idx/.sub) format into the .srt format.  VobSub subtitles contain images and srt is a text format.  OCR is used to extract the text from the subtitles.  vobsub2srt uses tesseract for OCR and is based on code from the MPlayer project.
+vobsub2srt converts subtitles in vobsub (.idx/.sub) format into the .srt format.  VobSub subtitles contain images and srt is a text format.
+OCR is used to extract the text from the subtitles.  vobsub2srt uses tesseract for OCR and is based on code from the MPlayer project.
 .SH OPTIONS
 .TP
 \fIFILENAME\fR
 File name of the subtitles \fBWITHOUT\fR the .idx or .sub extension. The .srt subtitles are written to a file called \fIFILENAME\fR.srt.
 .TP
-\fB\-\-dump\-images\fR
-Dump the subtitles as images (format \fIFILENAME\fR-\fINUMBER\fR.pgm in PGM format).
+\fB\-\-dump\-pgm\fR
+Extract the subtitles as NetPBM PGM images (format \fIFILENAME\fR-\fINUMBER\fR.pgm in PGM format). (Obsolete)
+.TP
+\fB\-\-dump\-png\fR
+Extract the subtitles to sequential PNG files.
 .TP
 \fB\-\-scale\fR
 Scale subtitles by x4, possibly increasing OCR accuracy.
@@ -24,28 +28,31 @@ Print text output to terminal (stdout).
 Print verbose information about the subtitle decoding process.
 .TP
 \fB\-\-lang\fR \fIlanguage\fR
-Select the language of the subtitle (two letter ISO 639-1 code e.g. en for English or de for German).  Use \fI--langlist\fR to see the languages in the subtitle file.
+Select the language of the subtitle (two letter ISO 639-1 code e.g. en for English or de for German).
+Use \fI--langlist\fR to see the languages in the subtitle file.
 .TP
 \fB\-\-langlist\fR
 List languages and exit.
 .TP
 \fB\-\-index\fR \fIindex\fR
-The index of the subtitle to convert.  Use this instead \fI--lang\fR if there are several streams with the same language.  Combining \fI--lang\fR and \fI--index\fR does not work!
+The index of the subtitle to convert.  Use this instead \fI--lang\fR if there are several streams with the same language.
+Combining \fI--lang\fR and \fI--index\fR does not work!
 .TP
 \fB\-\-ifo\fR \fIifo-file\fR
 To use a specific IFO file. Default: \fIFILENAME\fR.IFO is tried. IFO file is optional!
 .TP
 \fB\-\-tesseract-lang\fR \fIlanguage\fR
-Set the language to be used by Tesseract.  This is auto detected and normally does not need to be changed.  If however you need special language settings (e.g., deu-frak, chi_sim, chi_tra) use this option.
+Set the language to be used by Tesseract.  This is auto detected and normally does not need to be changed.
+If however you need special language settings (e.g., deu-frak, chi_sim, chi_tra) use this option.
 .TP
 \fB\-\-tesseract-data\fR \fIpath\fR
-Set path to Tesseract data.
+Set path to Tesseract data. (e.g. /usr/share/tessdata_best, otherwise auto-detect standard Tesseract data)
 .TP
 \fB\-\-blacklist\fR \fIblacklist\fR
 Blacklist characters for OCR (e.g. |\\/`_~<>)
 .TP
 \fB\-\-y-threshold\fR \fIthreshold\fR
-Y (luminance) threshold below which colors treated as black (Default: 0).
+Y (luminance) threshold below which colors treated as black (Default: 16).
 .TP
 \fB\-\-min-width\fR \fIwidth\fR
 Minimum width in pixels to consider a subpicture for OCR (Default: 8).

@@ -19,17 +19,20 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mp_msg.h" // mplayer message framework
-#include "vobsub.h"
-#include "spudec.h"
+#include "mp_msg.h" // MPlayer message framework
+#include "vobsub.h" // VobSub reader
+#include "spudec.h" // SPU decoder
 
 // Tesseract OCR
 #include <tesseract/baseapi.h>
 
-// Builtins
+// libpng
+#include <libpng/png.h>
+
+// Builtins/standard libs
 #include <memory>
 #include <cstdlib>
-#include <sys/stat.h>
+//#include <sys/stat.h> not used yet, may not be.
 #include <stdexcept>
 #include <cstdint>
 #include <climits>
@@ -41,12 +44,12 @@
 #include <cstdio>
 #include <vector>
 
-// VobSub2SRT helpers
+// Language and option handling.
 #include "langcodes.h++"
-#include "cmd_options.h++"
+#include "cmd_options.h++" // may need work. check this.
 
 // mplayer draw_alpha function
-void draw_alpha(int x0, int y0, int w, int h, unsigned char* src, unsigned char *srca, int stride);
+//void draw_alpha(int x0, int y0, int w, int h, unsigned char* src, unsigned char *srca, int stride);
 
 // Dummy draw_alpha for scaling (I think this is dead code, and the above is used. Was a long night.)
 static void dummy_draw_alpha(int x0, int y0, int w, int h, unsigned char* src, unsigned char *srca, int stride) {
@@ -106,10 +109,51 @@ void dump_pgm(std::string const &filename, unsigned counter, unsigned width, uns
   }
 }
 
+/** Or, to PNG */
+void dump_png(const std::string &filename, unsigned counter, unsigned width, unsigned height,
+	      unsigned stride, const unsigned char* image) {
+  char buf[500];
+  std::snprintf(buf, sizeof(buf), "%s-%04u.png", filename.c_str(), counter);
+  FILE* pngfile = std::fopen(buf, "wb");
+  if (!pngfile) {
+    mp_msg(MSGT_VOBSUB, MSGL_FATAL, "Unable to open PNG file for writing. Ensure you have write permissions.\n");
+    return;
+  }
+    png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    if (!png_ptr) {
+        std::cerr << "Unable to allocate memory for PNG file structure!\n";
+        return;
+    }
+
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr) {
+        png_destroy_write_struct(&png_ptr, nullptr);
+        return;
+    }
+
+    if (setjmp(png_jmpbuf(png_ptr))) {
+        png_destroy_write_struct(&png_ptr, &info_ptr);
+        return;
+    }
+    png_init_io(png_ptr, pngfile);
+    png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+    png_write_info(png_ptr, info_ptr);
+
+    for (size_t row = 0; row < height; ++row) {
+        png_write_row(png_ptr, const_cast<png_bytep>(image + row * stride));
+    }
+
+    png_write_end(png_ptr, nullptr);
+
+    png_destroy_write_struct(&png_ptr, &info_ptr);
+    std::fclose(pngfile);
+}
 
 int main(int argc, char **argv) {
   bool show = false;
-  bool dump_images = false;
+  bool dump_pgmfiles = false;
+  bool dump_pngfiles = false;
   int verb = -1;
   bool list_languages = false;
   std::string ifo_file;
@@ -119,7 +163,7 @@ int main(int argc, char **argv) {
   std::string blacklist;
   std::string tesseract_user_dir;
   int index = -1;
-  int y_threshold = 0;
+  int y_threshold = 16;
   int min_width = 8;
   int min_height = 1;
   bool scaled = false;
@@ -129,16 +173,17 @@ int main(int argc, char **argv) {
     opts.
       add_option("scale", scaled, "Scale subtitles for enhanced accuracy at a slight loss of speed.").
       add_option("show", show, "Show subtitles being written.").
-      add_option("dump-images", dump_images, "dump subtitles as image files (<subname>-<number>.pgm).").
-      add_option("verbose", verb, "extra (mplayer) verbosity, on a scale of 1 to 3.").
-      add_option("ifo", ifo_file, "name of the ifo file. default: tries to open <subname>.ifo. ifo file is optional\n\t\t\t\tbut may fix empty palette issues!").
-      add_option("lang", lang, "language to select", 'l').
-      add_option("langlist", list_languages, "list languages and exit").
-      add_option("index", index, "subtitle index", 'i').
-      add_option("tesseract-lang", tess_lang_user, "set tesseract language (Default: autodetect)").
-      add_option("tesseract-data", tesseract_user_dir, "path to tesseract data (Default: autodetect)").
+      add_option("dump-pgm", dump_pgmfiles, "Save subtitles as sequential NetPBM image files (<subname>-<number>.pgm).").
+      add_option("dump-png", dump_pngfiles, "Above, but in PNG format.").
+      add_option("verbose", verb, "Decoder verbosity, a value of 1 or 2.").
+      add_option("ifo", ifo_file, "Name of the IFO file. Default: tries to open <subname>.ifo(case insensitive). IFO file is optional\n\t\t\t\tbut may fix empty palette issues!").
+      add_option("lang", lang, "Language to select", 'l').
+      add_option("langlist", list_languages, "List languages and exit").
+      add_option("index", index, "Subtitle index", 'i').
+      add_option("tesseract-lang", tess_lang_user, "Desired Tesseract language (e.g. eng, deu, fra, esp) (Default: autodetect)").
+      add_option("tesseract-data", tesseract_user_dir, "Path to Tesseract data (e.g. you have tessdata_best and wish to use it. Default: autodetect)").
       add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\")").
-      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (Default: 0)").
+      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (Default: 16)").
       add_option("min-width", min_width, "Minimum width in pixels to consider a subpicture for OCR (Default: 8)").
       add_option("min-height", min_height, "Minimum height in pixels to consider a subpicture for OCR (Default: 1)");
     
@@ -154,8 +199,8 @@ int main(int argc, char **argv) {
   }
   mp_msg_init();
   
-  // Set Y threshold from command-line arg only if given
-  if (y_threshold) {
+  // Set Y threshold
+  if (y_threshold != 16) {
     std::cout << "Using Y palette threshold: " << y_threshold << "\n";
   }
   
@@ -217,6 +262,7 @@ int main(int argc, char **argv) {
 
   // Init Tesseract
   tesseract::TessBaseAPI tess_base_api;
+  //  tesseract::UNICHAR tess_unichar; maybe useful, likely not. we'll see.
   if(tess_base_api.Init(NULL, tess_lang, tesseract::OEM_LSTM_ONLY) == -1) {
     std::cerr << "Failed to initialize Tesseract (OCR).\n";
     return 1;
@@ -273,8 +319,8 @@ int main(int argc, char **argv) {
         unsigned int frame_width = 0, frame_height = 0;
         spudec_get_frame_size(spu, &frame_width, &frame_height);
 
-        unsigned int target_width = frame_width ? frame_width * 4 : width * 4;
-        unsigned int target_height = frame_height ? frame_height * 4 : height * 4;
+        unsigned int target_width = frame_width ? frame_width * 2 : width * 2;
+        unsigned int target_height = frame_height ? frame_height * 2 : height * 2;
 
         // Trigger scaled-image generation inside spudec using frame-based scaling.
         spudec_draw_scaled(spu, target_width, target_height, dummy_draw_alpha);
@@ -300,8 +346,7 @@ int main(int argc, char **argv) {
       }
 
       last_start_pts = start_pts;
-      
-    
+
 	      if(verbose > 0 and static_cast<unsigned>(timestamp) != start_pts) {
 		std::cerr << sub_counter << ": time stamp from .idx (" << timestamp
 			  << ") doesn't match time stamp from .sub ("
@@ -312,14 +357,20 @@ int main(int argc, char **argv) {
         unsigned char const *img = scaled ? scaled_image : image;
         size_t final_size = scaled ? scaled_image_size : image_size;
 
-        if(dump_images) {
+        if(dump_pgmfiles) {
           dump_pgm(subname, sub_counter, scaled ? sclwidth : width, scaled ? sclheight : height,
                    scaled ? scaled_stride : stride,
                    img, final_size);
         }
+
+	if (dump_pngfiles) {
+	  dump_png(subname, sub_counter, scaled ? sclwidth : width, scaled ? sclheight : height,
+		   scaled ? scaled_stride : stride,
+		   img);
+	}
     
         tess_base_api.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
-      
+
         // Adjust dimensions for Tesseract based on scaling mode
         int tesseract_width = scaled ? static_cast<int>(sclwidth) : static_cast<int>(width);
         int tesseract_height = scaled ? static_cast<int>(sclheight) : static_cast<int>(height);
@@ -331,6 +382,7 @@ int main(int argc, char **argv) {
         if (!tesseract_text) {
             text.reset(new char[60]);
             std::strcpy(text.get(), "VobSub2SRT ERROR: OCR failure! Unable to decode subtitle!");
+	    delete[] tesseract_text;
           } else {
             size_t len = std::strlen(tesseract_text);
             text.reset(new char[len + 1]);
