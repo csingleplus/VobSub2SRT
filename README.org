@@ -14,6 +14,10 @@ editor or a subtitle editor.
 
 ** Jun 2026
 -       PNG export added, cast vobsubid to avoid left shift.
+-       Image inversion added. Code by Ethan Dye, used with
+        permission  (https://github.com/ecdye/VobSub2SRT)
+-       Scaling code removed. It never did seem to work out well in my tests.
+-       Tesseract options added to improve accuracy somewhat.
 
 ** New for April/May 2026
 -       Scaling of subtitles implemented (try --scale)

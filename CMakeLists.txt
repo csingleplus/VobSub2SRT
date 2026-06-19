@@ -6,7 +6,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/CMakeModules)
 if(NOT CMAKE_BUILD_TYPE)
     set(
         CMAKE_BUILD_TYPE
-	Debug
         Release
         CACHE
         STRING
@@ -54,13 +53,13 @@ include(CheckCXXSourceCompiles)
 include(CheckCXXSourceRuns)
 
 set(CMAKE_C_STANDARD 17)
-set(CMAKE_C_FLAGS "-fsanitize=address,undefined -Wall -Wextra")
+set(CMAKE_C_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_FLAGS "-fsanitize=address,undefined -pedantic -Wall -Wextra")
+set(CMAKE_CXX_FLAGS "-pedantic -Wall -Wextra")
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -march=native -DNDEBUG")
 set(CMAKE_C_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
-set(CMAKE_CXX_FLAGS_DEBUG "-g3 -DDEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-fsanitize=address,undefined -g3 -DDEBUG")
 set(CMAKE_C_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
 
 find_package(Leptonica REQUIRED)

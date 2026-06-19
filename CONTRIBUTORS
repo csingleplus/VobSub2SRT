@@ -4,6 +4,8 @@ Most code is from the MPlayer project.
   from displaying realtime subtitle decoding, ensured compatibility across Linux distributions.
   Apr. 2026: Scaling code implemented (though it needs preprocessing).
   Jun. 2026: PNG writing implemented.
+- Ethan Dye <mrtops03@gmail.com> https://github.com/ecdye/VobSub2SRT
+  Image inversion code, resulting in cleaner and quicker output.
 - Armin Häberling <armin.aha@gmail.com> wrote a patch to fix an issue with
   multiple instances of the same subtitle in result file (21af426)
 - James Harris <jimmy@jamesharris.org> wrote the formula for Homebrew (54f311d6)

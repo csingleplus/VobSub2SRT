@@ -32,7 +32,6 @@
 // Builtins/standard libs
 #include <memory>
 #include <cstdlib>
-//#include <sys/stat.h> not used yet, may not be.
 #include <stdexcept>
 #include <cstdint>
 #include <climits>
@@ -46,20 +45,25 @@
 
 // Language and option handling.
 #include "langcodes.h++"
-#include "cmd_options.h++" // may need work. check this.
+#include "cmd_options.h++"
+#include "version.h++"
 
-// mplayer draw_alpha function
-//void draw_alpha(int x0, int y0, int w, int h, unsigned char* src, unsigned char *srca, int stride);
-
-// Dummy draw_alpha for scaling (I think this is dead code, and the above is used. Was a long night.)
-static void dummy_draw_alpha(int x0, int y0, int w, int h, unsigned char* src, unsigned char *srca, int stride) {
-    // create a dummy output to trigger the allocation in spudec_draw_scaled.
-    (void)x0; (void)y0; (void)w; (void)h;
-    (void)src; (void)srca; (void)stride;
-}
 
 typedef void* vob_t;
 typedef void* spu_t;
+
+/** Image inversion code by Ethan Dye [https://github.com/ecdye/VobSub2SRT] */
+
+struct ImageInverter {
+  ImageInverter(const unsigned char *image, size_t image_size)
+    : inverted_image(new unsigned char[image_size]) {
+    for (size_t i = 0; i < image_size; ++i)
+      inverted_image[i] = ((255 - image[i]) > 0x80) ? 0xff : 0;
+  }
+  ~ImageInverter() { delete[] inverted_image; }
+  
+  unsigned char *inverted_image;
+};
 
 // helper struct for caching and fixing end_pts in some cases
 struct sub_text_t {
@@ -162,34 +166,35 @@ int main(int argc, char **argv) {
   std::string tess_lang_user;
   std::string blacklist;
   std::string tesseract_user_dir;
+  std::string tess_user_dpi = "72";
   int index = -1;
   int y_threshold = 16;
   int min_width = 8;
   int min_height = 1;
-  bool scaled = false;
   
   {
     cmd_options opts;
     opts.
-      add_option("scale", scaled, "Scale subtitles for enhanced accuracy at a slight loss of speed.").
+      //      add_option("scale", scaled, "Scale subtitles for enhanced accuracy at a slight loss of speed.").
       add_option("show", show, "Show subtitles being written.").
       add_option("dump-pgm", dump_pgmfiles, "Save subtitles as sequential NetPBM image files (<subname>-<number>.pgm).").
       add_option("dump-png", dump_pngfiles, "Above, but in PNG format.").
       add_option("verbose", verb, "Decoder verbosity, a value of 1 or 2.").
-      add_option("ifo", ifo_file, "Name of the IFO file. Default: tries to open <subname>.ifo(case insensitive). IFO file is optional\n\t\t\t\tbut may fix empty palette issues!").
+      add_option("ifo", ifo_file, "Name of the IFO file. Default: tries to open <subname>.ifo(case insensitive).\n\t\t\t\tIFO file is optional but may fix empty palette issues!").
       add_option("lang", lang, "Language to select", 'l').
       add_option("langlist", list_languages, "List languages and exit").
       add_option("index", index, "Subtitle index", 'i').
-      add_option("tesseract-lang", tess_lang_user, "Desired Tesseract language (e.g. eng, deu, fra, esp) (Default: autodetect)").
-      add_option("tesseract-data", tesseract_user_dir, "Path to Tesseract data (e.g. you have tessdata_best and wish to use it. Default: autodetect)").
+      add_option("tesseract-lang", tess_lang_user, "Desired Tesseract language (e.g. eng, deu, fra, esp)\n\t\t\t\t(Default: autodetect)").
+      add_option("tesseract-data", tesseract_user_dir, "Path to Tesseract data (e.g. you have tessdata_best and wish to\n\t\t\t\tuse it. Default: autodetect)").
+      add_option("dpi", tess_user_dpi, "Set DPI for Tesseract OCR. Default: 72.").
       add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\")").
       add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (Default: 16)").
       add_option("min-width", min_width, "Minimum width in pixels to consider a subpicture for OCR (Default: 8)").
       add_option("min-height", min_height, "Minimum height in pixels to consider a subpicture for OCR (Default: 1)");
     
     opts.add_unnamed(subname, "subname", "name of the subtitle files without .idx/.sub ending.");
+    std::cout << "VobSub2SRT version " << version << '\n';
     if(!opts.parse_cmd(argc, argv)) {
-      //      std::cerr << "You may want to check 'vobsub2srt --help', or provide a subtitle name without the .idx/.sub extension.\n";
       return 0;
     }
   }
@@ -262,7 +267,6 @@ int main(int argc, char **argv) {
 
   // Init Tesseract
   tesseract::TessBaseAPI tess_base_api;
-  //  tesseract::UNICHAR tess_unichar; maybe useful, likely not. we'll see.
   if(tess_base_api.Init(NULL, tess_lang, tesseract::OEM_LSTM_ONLY) == -1) {
     std::cerr << "Failed to initialize Tesseract (OCR).\n";
     return 1;
@@ -277,6 +281,19 @@ int main(int argc, char **argv) {
   if(verb>=1) {
     std::cout << "Using Tesseract data directory: " << tesseract_user_dir << ".\n";
   }
+
+  // Run Tesseract multithreaded
+  std::string tess_parallel = "1";
+  tess_base_api.SetVariable("tessedit_parallelize", tess_parallel.c_str());
+
+  // Set DPI to 72, or user-specified with --dpi
+  tess_base_api.SetVariable("user_defined_dpi", tess_user_dpi.c_str());
+
+  // Attempt to improve whitespace detection
+  std::string tess_rej_spaces = "0";
+  std::string tess_improve_thresh = "1";
+  tess_base_api.SetVariable("tessedit_use_reject_spaces", tess_rej_spaces.c_str());
+  tess_base_api.SetVariable("tosp_improve_thresh", tess_improve_thresh.c_str());
   
   // Open srt output file
   std::string const srt_filename = subname + ".srt";
@@ -293,12 +310,12 @@ int main(int argc, char **argv) {
   unsigned last_start_pts = 0;
   unsigned sub_counter = 1;
   std::vector<sub_text_t> conv_subs;
-  conv_subs.reserve(200);
+  conv_subs.reserve(255);
   
   while ((len = vobsub_get_next_packet(vob, &packet, &timestamp)) > 0) {
     if (timestamp >= 0) {
-      unsigned char const *scaled_image = nullptr;
-      size_t scaled_image_size;
+      //      unsigned char const *scaled_image = nullptr;
+      //      size_t scaled_image_size;
 
       spudec_assemble(spu, reinterpret_cast<unsigned char*>(packet), len, timestamp);
       spudec_heartbeat(spu, timestamp);
@@ -306,7 +323,6 @@ int main(int argc, char **argv) {
       unsigned char const *image;
       unsigned width, height, stride, start_pts, end_pts;
       size_t image_size;
-      unsigned int sclwidth = 0, sclheight = 0, scaled_stride = 0;
       
       // First get the original image data to know dimensions
       spudec_get_data(spu, &image, &image_size, &width, &height, &stride, &start_pts, &end_pts);
@@ -314,7 +330,7 @@ int main(int argc, char **argv) {
       if (start_pts == last_start_pts) {
         continue;
       }
-
+      /*
       if (scaled) {
         unsigned int frame_width = 0, frame_height = 0;
         spudec_get_frame_size(spu, &frame_width, &frame_height);
@@ -343,8 +359,10 @@ int main(int argc, char **argv) {
           std::cerr << "WARNING: Scaled image too small " << sub_counter << "\n";
           continue;
         }
+	ImageInverter inverter(scaled_image, scaled_image_size);
+	scaled_image = inverter.inverted_image;
       }
-
+      */
       last_start_pts = start_pts;
 
 	      if(verbose > 0 and static_cast<unsigned>(timestamp) != start_pts) {
@@ -352,30 +370,34 @@ int main(int argc, char **argv) {
 			  << ") doesn't match time stamp from .sub ("
 			  << start_pts << ")\n";
 	      }
-    
+
+      // While tesseract version 3.05 (and older) handle inverted image (dark                                            
+      // background and light text) without problem for 4.x version use dark                                             
+      // text on light background.                                                                                       
+      // https://tesseract-ocr.github.io/tessdoc/ImproveQuality#image-processing                                          
+      
+      ImageInverter inverter(image, image_size);
+      image = inverter.inverted_image;
+      /*      
         // Use appropriate image based on scaling mode
         unsigned char const *img = scaled ? scaled_image : image;
         size_t final_size = scaled ? scaled_image_size : image_size;
-
+      */
         if(dump_pgmfiles) {
-          dump_pgm(subname, sub_counter, scaled ? sclwidth : width, scaled ? sclheight : height,
-                   scaled ? scaled_stride : stride,
-                   img, final_size);
+          dump_pgm(subname, sub_counter, width, height, stride, image, image_size);
         }
 
 	if (dump_pngfiles) {
-	  dump_png(subname, sub_counter, scaled ? sclwidth : width, scaled ? sclheight : height,
-		   scaled ? scaled_stride : stride,
-		   img);
+	  dump_png(subname, sub_counter, width, height, stride, image);
 	}
     
         tess_base_api.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
 
         // Adjust dimensions for Tesseract based on scaling mode
-        int tesseract_width = scaled ? static_cast<int>(sclwidth) : static_cast<int>(width);
-        int tesseract_height = scaled ? static_cast<int>(sclheight) : static_cast<int>(height);
-        int tesseract_stride = scaled ? static_cast<int>(scaled_stride) : static_cast<int>(stride);
-        tess_base_api.SetImage(img, tesseract_width, tesseract_height, 1, tesseract_stride);
+        int tesseract_width = static_cast<int>(width);
+        int tesseract_height = static_cast<int>(height);
+        int tesseract_stride = static_cast<int>(stride);
+        tess_base_api.SetImage(image, tesseract_width, tesseract_height, 1, tesseract_stride);
         char *tesseract_text = tess_base_api.GetUTF8Text();
         
         std::unique_ptr<char[]> text;
