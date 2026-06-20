@@ -175,7 +175,6 @@ int main(int argc, char **argv) {
   {
     cmd_options opts;
     opts.
-      //      add_option("scale", scaled, "Scale subtitles for enhanced accuracy at a slight loss of speed.").
       add_option("show", show, "Show subtitles being written.").
       add_option("dump-pgm", dump_pgmfiles, "Save subtitles as sequential NetPBM image files (<subname>-<number>.pgm).").
       add_option("dump-png", dump_pngfiles, "Above, but in PNG format.").
@@ -198,7 +197,14 @@ int main(int argc, char **argv) {
       return 0;
     }
   }
-  
+
+  if(argc < 2);
+  {
+    std::cerr << "Please specify a subtitle name without the .idx/.sub extension.\n";
+    return 1;
+  }
+
+
   if(verb>0) {
     verbose = verb; // mplayer verbose level
   }
@@ -214,6 +220,8 @@ int main(int argc, char **argv) {
   vob_t vob = vobsub_open(subname.c_str(), ifo_file.empty() ? 0x0 : ifo_file.c_str(), 1, y_threshold, &spu);
   if(!vob || vobsub_get_indexes_count(vob) == 0) {
     std::cerr << "Couldn't open VobSub files '" << subname << ".idx/.sub'\n";
+    if (vob)
+      vobsub_close(vob);
     return 1;
   }
 
@@ -304,6 +312,13 @@ int main(int argc, char **argv) {
   }
   
   // Read subtitles and convert
+  if (subname.empty()) {
+      vobsub_close(vob);
+      spudec_free(spu);
+      tess_base_api.End();
+      std::cerr << "Unable to open subtitles. Exiting.\n";
+      return 1;
+  }
   void *packet;
   int timestamp; // pts100
   int len;
@@ -324,45 +339,13 @@ int main(int argc, char **argv) {
       unsigned width, height, stride, start_pts, end_pts;
       size_t image_size;
       
-      // First get the original image data to know dimensions
+      // Get the image data to know dimensions and timing info
       spudec_get_data(spu, &image, &image_size, &width, &height, &stride, &start_pts, &end_pts);
       
       if (start_pts == last_start_pts) {
         continue;
       }
-      /*
-      if (scaled) {
-        unsigned int frame_width = 0, frame_height = 0;
-        spudec_get_frame_size(spu, &frame_width, &frame_height);
 
-        unsigned int target_width = frame_width ? frame_width * 2 : width * 2;
-        unsigned int target_height = frame_height ? frame_height * 2 : height * 2;
-
-        // Trigger scaled-image generation inside spudec using frame-based scaling.
-        spudec_draw_scaled(spu, target_width, target_height, dummy_draw_alpha);
-
-        unsigned int dummy_w = 0, dummy_h = 0, dummy_s = 0;
-        spudec_get_data_scaled(spu, &scaled_image, &scaled_image_size,
-                               &width, &height, &stride,
-                               &start_pts, &end_pts,
-                               &dummy_w, &dummy_h, &dummy_s);
-
-        sclwidth = dummy_w;
-        sclheight = dummy_h;
-        scaled_stride = dummy_s;
-
-        if (!scaled_image || sclwidth == 0 || sclheight == 0 || scaled_image_size == 0) {
-          std::cerr << "DEBUG: Requested frame scale (" << target_width << ", " << target_height
-                    << "), got invalid scaled result" << std::endl;
-          std::cerr << "Image dimensions: " << width << " x " << height
-                    << ", stride: " << stride << "\n";
-          std::cerr << "WARNING: Scaled image too small " << sub_counter << "\n";
-          continue;
-        }
-	ImageInverter inverter(scaled_image, scaled_image_size);
-	scaled_image = inverter.inverted_image;
-      }
-      */
       last_start_pts = start_pts;
 
 	      if(verbose > 0 and static_cast<unsigned>(timestamp) != start_pts) {
@@ -378,65 +361,61 @@ int main(int argc, char **argv) {
       
       ImageInverter inverter(image, image_size);
       image = inverter.inverted_image;
-      /*      
-        // Use appropriate image based on scaling mode
-        unsigned char const *img = scaled ? scaled_image : image;
-        size_t final_size = scaled ? scaled_image_size : image_size;
-      */
-        if(dump_pgmfiles) {
-          dump_pgm(subname, sub_counter, width, height, stride, image, image_size);
-        }
 
-	if (dump_pngfiles) {
-	  dump_png(subname, sub_counter, width, height, stride, image);
-	}
+      if(dump_pgmfiles) {
+	dump_pgm(subname, sub_counter, width, height, stride, image, image_size);
+      }
+      
+      if (dump_pngfiles) {
+	dump_png(subname, sub_counter, width, height, stride, image);
+      }
     
-        tess_base_api.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
+      tess_base_api.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
 
-        // Adjust dimensions for Tesseract based on scaling mode
-        int tesseract_width = static_cast<int>(width);
-        int tesseract_height = static_cast<int>(height);
-        int tesseract_stride = static_cast<int>(stride);
-        tess_base_api.SetImage(image, tesseract_width, tesseract_height, 1, tesseract_stride);
-        char *tesseract_text = tess_base_api.GetUTF8Text();
+      // Adjust dimensions for Tesseract based on scaling mode
+      int tesseract_width = static_cast<int>(width);
+      int tesseract_height = static_cast<int>(height);
+      int tesseract_stride = static_cast<int>(stride);
+      tess_base_api.SetImage(image, tesseract_width, tesseract_height, 1, tesseract_stride);
+      char *tesseract_text = tess_base_api.GetUTF8Text();
+      
+      std::unique_ptr<char[]> text;
+      if (!tesseract_text) {
+	text.reset(new char[60]);
+	std::strcpy(text.get(), "VobSub2SRT ERROR: OCR failure! Unable to decode subtitle!");
+	delete[] tesseract_text;
+      } else {
+	size_t len = std::strlen(tesseract_text);
+	text.reset(new char[len + 1]);
+	std::strcpy(text.get(), tesseract_text);
+	delete[] tesseract_text;
+      }
         
-        std::unique_ptr<char[]> text;
-        if (!tesseract_text) {
-            text.reset(new char[60]);
-            std::strcpy(text.get(), "VobSub2SRT ERROR: OCR failure! Unable to decode subtitle!");
-	    delete[] tesseract_text;
-          } else {
-            size_t len = std::strlen(tesseract_text);
-            text.reset(new char[len + 1]);
-            std::strcpy(text.get(), tesseract_text);
-            delete[] tesseract_text;
-          }
-        
-          if (text) {
-            if(show) {
-              std::cout << "Line " << sub_counter << ": " << text.get();
-            }
-            conv_subs.emplace_back(sub_text_t(start_pts, end_pts, std::move(text)));
-            sub_counter++;
-          }
+      if (text) {
+	if(show) {
+	  std::cout << "Line " << sub_counter << ": " << text.get();
+	}
+	conv_subs.emplace_back(sub_text_t(start_pts, end_pts, std::move(text)));
+	sub_counter++;
+      }
     }
-    }
+  }
 
     // write the file, fixing end_pts when needed
-    for(unsigned i = 0; i < conv_subs.size(); ++i) {
-      if(conv_subs[i].end_pts == UINT_MAX && i+1 < conv_subs.size())
-        conv_subs[i].end_pts = conv_subs[i+1].start_pts;
-      
-      std::fprintf(srtout, "%u\n%s --> %s\n%s\n\n", i+1, pts2srt(conv_subs[i].start_pts).c_str(),
-	          pts2srt(conv_subs[i].end_pts).c_str(), conv_subs[i].text.get());
-    }
+for(unsigned i = 0; i < conv_subs.size(); ++i) {
+  if(conv_subs[i].end_pts == UINT_MAX && i+1 < conv_subs.size())
+    conv_subs[i].end_pts = conv_subs[i+1].start_pts;
+  
+  std::fprintf(srtout, "%u\n%s --> %s\n%s\n\n", i+1, pts2srt(conv_subs[i].start_pts).c_str(),
+	       pts2srt(conv_subs[i].end_pts).c_str(), conv_subs[i].text.get());
+ }
 
     // Close up shop
-    tess_base_api.End();
-    std::fclose(srtout);
-    std::cout << "Wrote Subtitles to '" << subname << ".srt'\n";
-    vobsub_close(vob);
-    spudec_free(spu);
-    mp_msg_uninit();
-    return 0;
-    }
+tess_base_api.End();
+std::fclose(srtout);
+std::cout << "Wrote Subtitles to '" << subname << ".srt'\n";
+vobsub_close(vob);
+spudec_free(spu);
+mp_msg_uninit();
+return 0;
+}

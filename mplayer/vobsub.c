@@ -836,13 +836,15 @@ void *vobsub_open(const char *const name, const char *const ifo,
                     if (spu && *spu) {
                         spudec_free(*spu);
                         *spu = NULL;
+			vob = NULL;
+			free(vob);
                     }
                     free(vob);
                     return NULL;
                 }
             } else {
                 while (vobsub_parse_one_line(vob, fd, &extradata, &extradata_len) >= 0)
-                    /* NOOP */ ;
+                    free(vob);
                 fclose(fd);
             }
             if (spu)
@@ -862,6 +864,8 @@ void *vobsub_open(const char *const name, const char *const ifo,
                     if (spu && *spu) {
                         spudec_free(*spu);
                         *spu = NULL;
+			vob = NULL;
+			free(vob);
                     }
                     free(vob);
                     return NULL;
