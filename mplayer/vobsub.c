@@ -89,8 +89,7 @@ static ssize_t vobsub_getline(char **lineptr, size_t *n, sub_stream_t *stream)
     (*lineptr)[res] = 0;
     return res;
 }
-
-/**********************************************************************
+/***********************************************************************
  * MPEG parsing
  **********************************************************************/
 
@@ -795,9 +794,11 @@ void *vobsub_open(const char *const name, const char *const ifo,
                     mp_msg(MSGT_VOBSUB, MSGL_ERR, "VobSub: Can't open IDX file\n");
                 else {
                     free(buf);
+		    free(vob);
                     if (spu && *spu) {
                         spudec_free(*spu);
                         *spu = NULL;
+			vob = NULL;
                     }
                     free(vob);
                     return NULL;
@@ -808,7 +809,9 @@ void *vobsub_open(const char *const name, const char *const ifo,
                 fclose(fd);
             }
             if (spu)
-                *spu = spudec_new_scaled(vob->palette, vob->orig_frame_width, vob->orig_frame_height, extradata, extradata_len, y_threshold);
+                *spu = spudec_new_scaled(vob->palette, vob->orig_frame_width,
+					 vob->orig_frame_height, extradata, extradata_len,
+					 y_threshold);
             if (extradata)
                 free(extradata);
 
@@ -824,6 +827,7 @@ void *vobsub_open(const char *const name, const char *const ifo,
                     if (spu && *spu) {
                         spudec_free(*spu);
                         *spu = NULL;
+			vob = NULL;
                     }
                     free(vob);
                     return NULL;

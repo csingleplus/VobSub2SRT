@@ -211,11 +211,14 @@ int main(int argc, char **argv) {
   // Open the sub/idx subtitles
   spu_t spu;
   vob_t vob = vobsub_open(subname.c_str(), ifo_file.empty() ? 0x0 : ifo_file.c_str(), 1, y_threshold, &spu);
-  if(!vob || vobsub_get_indexes_count(vob) == 0) {
+  if (!vob || vobsub_get_indexes_count(vob) == 0) {
     std::cerr << "Couldn't open VobSub files '" << subname << ".idx/.sub'\n";
-    if (vob)
+    if (subname.empty() || vob) {
       vobsub_close(vob);
+    spudec_free(spu);
+    mp_msg_uninit();
     return 1;
+    }
   }
 
   // list languages and exit
@@ -224,6 +227,9 @@ int main(int argc, char **argv) {
     for(size_t i = 0; i < vobsub_get_indexes_count(vob); ++i) {
       char const *const id = vobsub_get_id(vob, i);
       std::cout << i << ": " << (id ? id : "(no id)") << '\n';
+      vobsub_close(vob);
+      spudec_free(spu);
+      mp_msg_uninit();
     }
     return 0;
   }
@@ -231,6 +237,9 @@ int main(int argc, char **argv) {
   // Handle stream Ids and language
   if(!lang.empty() && index >= 0) {
     std::cerr << "Setting both lang and index not supported.\n";
+    vobsub_close(vob);
+    spudec_free(spu);
+    mp_msg_uninit();
     return 1;
   }
 
