@@ -89,45 +89,7 @@ static ssize_t vobsub_getline(char **lineptr, size_t *n, sub_stream_t *stream)
     (*lineptr)[res] = 0;
     return res;
 }
-/*
-static ssize_t vobsub_getline(char **lineptr, size_t *n, sub_stream_t *stream)
-{
-    size_t res = 0;
-    int c;
-    if (*lineptr == NULL) {
-        *lineptr = malloc(4096);
-        if (*lineptr)
-            *n = 4096;
-    } else if (*n == 0) {
-        char *tmp = realloc(*lineptr, 4096);
-        if (tmp) {
-            *lineptr = tmp;
-            *n = 4096;
-        }
-    }
-    if (*lineptr == NULL || *n == 0)
-        return -1;
 
-    for (c = getc(stream); c != EOF; c = getc(stream)) {
-        if (res + 1 >= *n) {
-            char *tmp = realloc(*lineptr, *n * 2);
-            if (tmp == NULL)
-                return -1;
-            *lineptr = tmp;
-            *n *= 2;
-        }
-        (*lineptr)[res++] = c;
-        if (c == '\n') {
-            (*lineptr)[res] = 0;
-            return res;
-        }
-    }
-    if (res == 0)
-        return -1;
-    (*lineptr)[res] = 0;
-    return res;
-}
-*/
 /**********************************************************************
  * MPEG parsing
  **********************************************************************/
@@ -836,15 +798,13 @@ void *vobsub_open(const char *const name, const char *const ifo,
                     if (spu && *spu) {
                         spudec_free(*spu);
                         *spu = NULL;
-			vob = NULL;
-			free(vob);
                     }
                     free(vob);
                     return NULL;
                 }
             } else {
                 while (vobsub_parse_one_line(vob, fd, &extradata, &extradata_len) >= 0)
-                    free(vob);
+		    /* NO-OP */;
                 fclose(fd);
             }
             if (spu)
@@ -864,8 +824,6 @@ void *vobsub_open(const char *const name, const char *const ifo,
                     if (spu && *spu) {
                         spudec_free(*spu);
                         *spu = NULL;
-			vob = NULL;
-			free(vob);
                     }
                     free(vob);
                     return NULL;

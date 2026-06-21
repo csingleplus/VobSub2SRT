@@ -198,13 +198,6 @@ int main(int argc, char **argv) {
     }
   }
 
-  if(argc < 2);
-  {
-    std::cerr << "Please specify a subtitle name without the .idx/.sub extension.\n";
-    return 1;
-  }
-
-
   if(verb>0) {
     verbose = verb; // mplayer verbose level
   }
@@ -312,13 +305,14 @@ int main(int argc, char **argv) {
   }
   
   // Read subtitles and convert
+  /*
   if (subname.empty()) {
       vobsub_close(vob);
       spudec_free(spu);
       tess_base_api.End();
       std::cerr << "Unable to open subtitles. Exiting.\n";
       return 1;
-  }
+  }*/
   void *packet;
   int timestamp; // pts100
   int len;
