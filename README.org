@@ -12,6 +12,10 @@ does not use any preprocessing.  But I'm currently looking into adding filters
 to improve the OCR. You can correct mistakes in the =.srt= files with a text
 editor or a subtitle editor.
 
+** July 2026
+-		Rewrite incoming. Give me a couple weeks to a month. Results are promising
+		with increased speed and accuracy.
+
 ** Jun 2026
 -       PNG export added, cast vobsubid to avoid left shift.
 -       Image inversion added. Code by Ethan Dye, used with
