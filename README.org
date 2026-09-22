@@ -2,17 +2,12 @@
 VobSub2SRT is a simple command line program to convert =.idx= / =.sub= subtitles
 into =.srt= text subtitles by using OCR.  It is based on code from the
 [[https://www.mplayerhq.hu][MPlayer project]] - a pretty decent movie player.  Some minor parts are
- copied from [[https://ffmpeg.org/][ffmpeg/avutil]] headers. [[https://code.google.com/p/tesseract-ocr/][Tesseract]] is used as OCR software.
+ copied from [[https://ffmpeg.org/][ffmpeg/avutil]] headers. [[https://code.google.com/p/tesseract-ocr/][Tesseract]] is used as OCR software. [[https://opencv.org/][OpenCV]] is used for contour detection to help detect italic characters and to manipulate subtitle images.
 
 vobsub2srt is released under the GPL3+ license. The MPlayer code included is
 GPL2+ licensed.
 
-The quality of the OCR depends on the text in the subtitles. Currently the code
-does not use any preprocessing.  But I'm currently looking into adding filters
-to improve the OCR. You can correct mistakes in the =.srt= files with a text
-editor or a subtitle editor.
-
--	MPlayer verbosity separated from realtime text output
+The quality of the OCR depends on the text in the subtitles.
 
 ** September 2026
 New:
@@ -26,14 +21,14 @@ New:
 - Bugfix for skipped subtitle images
 
 * Building
-You need OpenCV, libPNG, Tesseract, CMake and GCC to build =vobsub2srt=.
+You need OpenCV, Tesseract, CMake and GCC to build =vobsub2srt=.
 With a Debian-based distribution, you can install the dependencies with:
 
 #+BEGIN_EXAMPLE
-  sudo apt-get install libopencv-dev libpng-dev libtiff5-dev libtesseract-dev build-essential cmake pkg-config
+  sudo apt-get install libopencv-dev libtiff5-dev libtesseract-dev build-essential cmake pkg-config
 #+END_EXAMPLE
 
-You also need to install the tesseract data for the languages you want to use.
+You also need to install the tesseract data for the languages you want to use:
 
 #+BEGIN_EXAMPLE
 	sudo apt-get install tesseract-lang-eng
@@ -59,25 +54,6 @@ sudo cmake --install build
 This should install the program vobsub2srt to =/usr/local/bin=.
 Run configure with -DCMAKE_INSTALL_PREFIX=<path> for elsewhere. You can
 uninstall vobsub2srt with =sudo make uninstall=.
-
-** Static binary
-I recommend using the dynamic binary! However if you really need a static binary
-you can add the flag =-DBUILD_STATIC=ON= to the =./configure= call.  But be
-aware that building static binaries can be quite troublesome. You need the
-static library files for tesseract, libtill, libavutils, and for their
-dependencies as well.  On Ubuntu 12.04 the static libraries are only included in
-the dev packages! You probably also need the Gold linker.
-
-For Ubuntu 12.04 you need the following extra packages: (but this branch likely does not work with such an old distro.)
-
-#+BEGIN_EXAMPLE
-  sudo apt-get install libleptonica-dev libpng-dev libwebp-dev libgif-dev zlib1g-dev libjpeg-dev binutils-gold
-#+END_EXAMPLE
-
-If linking fails with undefined references then checking what other dependencies
-your version of leptonica has is a good starting point. You can do this by
-running =ldd /usr/lib/liblept.so= (or whatever the path to leptonica is on your
-system). Add those dependencies to =CMakeModules/FindTesseract.cmake=.
 
 *** .deb (Debian/Ubuntu)
 You can build a *.deb package (Debian/Ubuntu) with =make package=.  The package
@@ -107,14 +83,14 @@ may be written by combining langcodes as such: eng+fra. In most cases this
 should however be autodetected.
 
 If you want to dump the subtitles as images (e.g. to check for correct ocr) you
-can use the =--dump-png= flag.
+can use the =--dump-images= flag.
 
 Use =--help= or read the manpage to get more information about the options of
 vobsub2srt.
 
 * Bug reports
 Please submit bug reports or feature requests to the
-[[https://github.com/csingleplus/VobSub2SRT/issues][issue tracker on GitHub]].
+[[https://github.com/wififreedom/VobSub2SRT/issues][issue tracker on GitHub]].
 
 If you have problems with a specific subtitle file then please check if
 it works in mplayer first. Also, you may need to replace the palette line
