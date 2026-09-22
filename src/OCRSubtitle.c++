@@ -28,10 +28,10 @@ write_pts(
   std::ostream& os,
   const unsigned pts) {
   return os << std::format("{:02}:{:02}:{:02},{:03}",
-      pts / 90 / 1000 / 3600 /* hour */,
-      pts / 90 / 1000 / 60 /* minutes */,
-      pts / 90 / 1000 /* seconds */,
-      pts / 90 /* mlliseconds */);
+      pts / (90 * 1000 * 3600) /* hour */,
+      (pts / (90 * 1000 * 60)) % 60 /* minutes */,
+      (pts / (90 * 1000)) % 60 /* seconds */,
+      (pts / 90) % 1000 /* mlliseconds */);
 }
 
 void
