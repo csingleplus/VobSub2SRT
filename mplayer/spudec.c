@@ -613,13 +613,14 @@ void spudec_assemble(void *this, unsigned char *packet, unsigned int len, int pt
 {
   spudec_handle_t *spu = this;
 //  spudec_heartbeat(this, pts100);
-  if (len < 2) {
-      mp_msg(MSGT_SPUDEC,MSGL_WARN,"SPUasm: packet too short\n");
-      return;
-  }
   spu->packet_pts = pts100;
   if (spu->packet_offset == 0) {
-    unsigned int len2 = get_be16(packet);
+    unsigned int len2 = 0;
+    if (len < 2) {
+	mp_msg(MSGT_SPUDEC,MSGL_WARN,"SPUasm: packet too short\n");
+	return;
+    }
+    len2 = get_be16(packet);
     // Start new fragment
     if (spu->packet_reserve < len2) {
       free(spu->packet);
@@ -648,39 +649,11 @@ void spudec_assemble(void *this, unsigned char *packet, unsigned int len, int pt
       spu->packet_offset += len;
     }
   }
-#if 1
-  // check if we have a complete packet (unfortunatelly packet_size is bad
-  // for some disks)
-  // [cb] packet_size is padded to be even -> may be one byte too long
-  if ((spu->packet_offset == spu->packet_size) ||
-      ((spu->packet_offset + 1) == spu->packet_size)){
-    unsigned int x=0,y;
-    while(x+4<=spu->packet_offset){
-      y=get_be16(spu->packet+x+2); // next control pointer
-      mp_msg(MSGT_SPUDEC,MSGL_DBG2,"SPUtest: x=%d y=%d off=%d size=%d\n",x,y,spu->packet_offset,spu->packet_size);
-      if(x>=4 && x==y){		// if it points to self - we're done!
-        // we got it!
-	mp_msg(MSGT_SPUDEC,MSGL_DBG2,"SPUgot: off=%d  size=%d \n",spu->packet_offset,spu->packet_size);
-	spudec_decode(spu, pts100);
-	spu->packet_offset = 0;
-	break;
-      }
-      if(y<=x || y>=spu->packet_size){ // invalid?
-	mp_msg(MSGT_SPUDEC,MSGL_WARN,"SPUtest: broken packet!!!!! y=%d < x=%d\n",y,x);
-        spu->packet_size = spu->packet_offset = 0;
-        break;
-      }
-      x=y;
-    }
-    // [cb] packet is done; start new packet
-    spu->packet_offset = 0;
-  }
-#else
+
   if (spu->packet_offset == spu->packet_size) {
     spudec_decode(spu, pts100);
     spu->packet_offset = 0;
   }
-#endif
 }
 
 void spudec_reset(void *this)	// called after seek
@@ -693,14 +666,16 @@ void spudec_reset(void *this)	// called after seek
   spu->packet_size = spu->packet_offset = 0;
 }
 
-void spudec_heartbeat(void *this, unsigned int pts100)
+int spudec_heartbeat(void *this, unsigned int pts100)
 {
+  int dequeued = 0;
   spudec_handle_t *spu = this;
   spu->now_pts = pts100;
 
   // TODO: detect and handle broken timestamps (e.g. due to wrapping)
   while (spu->queue_head != NULL && pts100 >= spu->queue_head->start_pts) {
     packet_t *packet = spudec_dequeue_packet(spu);
+    dequeued++;
     spu->start_pts = packet->start_pts;
     spu->end_pts = packet->end_pts;
     if (packet->is_decoded) {
@@ -726,6 +701,8 @@ void spudec_heartbeat(void *this, unsigned int pts100)
     spudec_free_packet(packet);
     spu->spu_changed = 1;
   }
+
+  return dequeued;
 }
 
 int spudec_visible(void *this){

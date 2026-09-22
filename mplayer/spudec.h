@@ -27,7 +27,7 @@
 extern "C" {
 #endif
 
-void spudec_heartbeat(void *self, unsigned int pts100);
+int spudec_heartbeat(void *self, unsigned int pts100);
 void spudec_assemble(void *self, unsigned char *packet, unsigned int len, int pts100);
 void spudec_draw(void *self, void (*draw_alpha)(int x0,int y0, int w,int h, unsigned char* src, unsigned char *srca, int stride));
 void spudec_draw_scaled(void *self, unsigned int dxs, unsigned int dys, void (*draw_alpha)(int x0,int y0, int w,int h, unsigned char* src, unsigned char *srca, int stride));

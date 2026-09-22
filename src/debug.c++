@@ -1,8 +1,7 @@
 /*
- *  VobSub2SRT is a simple command line program to convert .idx/.sub subtitles
- *  into .srt text subtitles by using OCR (tesseract). See README.
+ *  This file is part of vobsub2srt.
  *
- *  version.h++ Copyright (C) 2026 Christopher Ogloff <chris.ogloff@gmail.com>
+ *  Copyright (C) 2026 Bastiaan Stougie <wififreedm2026@protonmail.com>
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -11,16 +10,16 @@
  *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _VERSION_H_
-#define _VERSION_H_
+#include "debug.h++"
 
-const std::string version = "2.0.0";
+bool debug = false;
+std::size_t debug_subtitle_number = 0;
+std::string debug_ext;
 
-#endif

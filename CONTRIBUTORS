@@ -1,4 +1,30 @@
 Most code is from the MPlayer project.
+- Bastiaan Stougie <wififreedom2026@protonmail.com>
+  Sep. 2026:
+  - option --detect-italic:
+    Detect text that is italic and mark it as such in the output .srt file with
+    <i> and </i> tags. Uses opencv contour detection to improve bounding boxes
+    received from Tesseract, then looks at the leftmost symbol pixel in the top
+    row and bottom row of the symbol bounding box to determine, based on
+    collected statistics, if a symbol is italic or not. Propagates the results
+    to the word and neighbouring words.
+  - option --ocr-batch-size:
+    Combine multiple subtitle images into one image for increased OCR accuracy
+    and to prevent that OCR does not find any text if there's only a little
+    text in a subtitle image.
+  - options --base-duration and --chars-per-sec:
+    limit maximum subtitle display information based on a bas duration plus
+    a duration based on the characters per second a viewer reads.
+  - options --debug-number and --debug-images:
+    for debugging
+  - fix for broken mplayer code that read past a buffer, causing an invalid
+    palette and therefore broken images
+  - fix for skipped subtitles: no longer look at start_pts, which caused
+    skipped subtitle images if start_pts is the same
+  - automatic threshold limit detection based on image color histogram
+  - ability to sump subtitle images in any file format opencv supports
+  - exception safety and exception handling
+  - always replace "|" received from Tesseract with "I".
 - Chris Ogloff <chris.ogloff@gmail.com> Mar. 2026: added memory safety,
   modern Tesseract calls, validated with Valgrind, separated MPlayer verbosity
   from displaying realtime subtitle decoding, ensured compatibility across Linux distributions.
