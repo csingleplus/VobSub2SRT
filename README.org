@@ -92,14 +92,14 @@ A more elaborate example:
 
 Input files:
 
-#+BEGIN EXAMPLE
+#+BEGIN_EXAMPLE
 my-movie-subtitle.idx
 my-movie-subtitle.sub
 #+END_EXAMPLE
 
 Command:
 
-#+BEGIN EXAMPLE
+#+BEGIN_EXAMPLE
   vobsub2srt --detect-italic --base-duration 1500 --chars-per-sec 19 --tesseract-lang 'eng+fra' my-movie-subtitle
 #+END_EXAMPLE
 
