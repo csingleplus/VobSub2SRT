@@ -88,6 +88,41 @@ can use the =--dump-images= flag.
 Use =--help= or read the manpage to get more information about the options of
 vobsub2srt.
 
+A more elaborate example:
+
+Input files:
+
+#+BEGIN EXAMPLE
+my-movie-subtitle.idx
+my-movie-subtitle.sub
+#+END_EXAMPLE
+
+Command:
+
+#+BEGIN EXAMPLE
+  vobsub2srt --detect-italic --base-duration 1500 --chars-per-sec 19 --tesseract-lang 'eng+fra' my-movie-subtitle
+#+END_EXAMPLE
+
+Output file:
+
+#+BEGIN_EXAMPLE
+my-movie-subtitle.srt
+#+END_EXAMPLE
+
+Example contents of the .srt file:
+
+#+BEGIN_EXAMPLE
+...
+
+199
+00:50:01,230 --> 00:50:03,221
+- No.
+- <i>Non?</i>
+
+...
+#+END_EXAMPLE
+
+
 * Bug reports
 Please submit bug reports or feature requests to the
 [[https://github.com/wififreedom/VobSub2SRT/issues][issue tracker on GitHub]].
