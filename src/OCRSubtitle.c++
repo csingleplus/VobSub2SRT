@@ -41,12 +41,6 @@ OCRSubtitle::bboxes_assign(
 
   for (std::size_t i = 0; i < line_vec.size(); i++) {
 
-    if (debug || subtitle_number == debug_subtitle_number) {
-      std::cerr << "subtitle " << subtitle_number <<
-       	", line " << (i + 1) <<
-       	": bboxes_assign" << std::endl;
-    }
-
     std::vector<cv::Rect> bbox_vec;
     // Tesseract OCR works best with black text on a white background.
     // Contour detection works best with white text on a black background:

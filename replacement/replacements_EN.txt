@@ -23,7 +23,7 @@
 #
 # Replacement pattern basics:
 #
-# \\       a literal backspace
+# \\       a literal backslash
 # \1       whatever the first () in the match pattern matched
 # \2       etc.
 #

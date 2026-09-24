@@ -79,7 +79,7 @@ OCRLine::write(
 // - does not validate byte 2,3,4
 // - does not check for overlong encodings
 // returns empty string on error
-std::string
+static std::string
 get_utf8_char(
     const std::string& src,
     const std::size_t pos) {
@@ -137,7 +137,7 @@ OCRLine::read(
   std::istream_iterator<std::string> end;
   const std::vector<std::string> words(begin, end);
 
-  word_vec.clear();
+  std::vector<OCRWord> new_word_vec;
   std::size_t word_number = 1;
   for (const auto & word_it : words) {
     std::vector<OCRSymbol> symbol_vec;
@@ -159,7 +159,7 @@ OCRLine::read(
       pos += utf8_symbol.size();
     }
 
-    word_vec.emplace_back(
+    new_word_vec.emplace_back(
 	subtitle_number,
 	line_number,
 	word_number,
@@ -167,6 +167,13 @@ OCRLine::read(
 
     word_number++;
   }
+
+  // compare to see if we need to invalidate word_ocr_bbox_vec.
+  if (new_word_vec.size() != word_vec.size()) {
+    word_ocr_bbox_vec.clear();
+  }
+
+  new_word_vec.swap(word_vec);
 }
 
 // Goals:
@@ -201,6 +208,10 @@ OCRLine::bboxes_assign(
   //   "sheared" / "skewed") bounding boxes.
   // - for double quotes vs multiple single quotes: a combined bbox,
   //   resulting in too few bboxes. This is unlikely to happen.
+
+  if (debug || subtitle_number == debug_subtitle_number) {
+    cerr_log() << ": bboxes_assign" << (stats ? "" : " (to build stats)") << std::endl;
+  }
 
   // It's important to improve the quality of the symbol bboxes both for
   // gathering statistics, and for italic detection in general.
@@ -385,8 +396,8 @@ OCRLine::bboxes_assign(
   }
   else {
     if (debug || subtitle_number == debug_subtitle_number) {
-      // TODO do better above.
-      cerr_log() << ": number of words does not match number of word bboxes" << std::endl;
+      cerr_log() << ": number of words does not match number of word bboxes" <<
+	", don't assign symbol bboxes to symbols" << std::endl;
     }
     success = false;
   }
