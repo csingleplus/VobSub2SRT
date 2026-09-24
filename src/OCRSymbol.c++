@@ -1,7 +1,7 @@
 /*
  *  This file is part of vobsub2srt
  *
- *  Copyright (C) 2026 Bastiaan Stougie <wififreedm2026@protonmail.com>
+ *  Copyright (C) 2026 Bastiaan Stougie <wififreedom2026@protonmail.com>
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -24,6 +24,27 @@
 #include <opencv2/imgproc.hpp>
 
 #include "generic_exception.h++"
+
+OCRSymbol::OCRSymbol(
+    const char* const utf8_symbol)
+    : priv_utf8_symbol(),
+      priv_bboxes(),
+      priv_italic_confidence(DEFAULT_CONFIDENCE) {
+
+  if (utf8_symbol == NULL) {
+    std::cerr << "NULL symbol" << std::endl;
+    throw std::invalid_argument("OCRSymbol(): NULL symbol");
+  }
+
+  priv_utf8_symbol = std::string(utf8_symbol);
+}
+
+OCRSymbol::OCRSymbol(
+    const std::string& utf8_symbol)
+    : priv_utf8_symbol(utf8_symbol),
+      priv_bboxes(),
+      priv_italic_confidence(DEFAULT_CONFIDENCE) {
+}
 
 bool
 OCRSymbol::is_one_of(
@@ -127,12 +148,12 @@ OCRSymbol::assign_confidence(
     const int top_pos = bbox_top_row_left_pixel_pos(img, bbox);
     const int bottom_pos = bbox_bottom_row_left_pixel_pos(img, bbox);
     if (top_pos == -1 || bottom_pos == -1) {
-      // bad bbox, possibly a split combined one.
+      // Bad bbox, possibly a split combined one.
       return;
     }
     const int pos = top_pos - bottom_pos;
 
-    if (pos > avg_pos_opt.value() + 0.05) {
+    if (pos > avg_pos_opt.value() + 0.05 /* error margin */) {
       priv_italic_confidence = (1 + pos - avg_pos_opt.value()) * bbox.height;
     }
     else {

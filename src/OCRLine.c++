@@ -1,7 +1,7 @@
 /*
  *  This file is part of vobsub2srt
  *
- *  Copyright (C) 2026 Bastiaan Stougie <wififreedm2026@protonmail.com>
+ *  Copyright (C) 2026 Bastiaan Stougie <wififreedom2026@protonmail.com>
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -24,6 +24,35 @@
 #include "generic_exception.h++"
 #include "debug.h++"
 
+#include <codecvt>
+#include <cstdint>
+#include <locale>
+#include <iterator>
+
+OCRLine::OCRLine(
+    const std::size_t subtitle_number,
+    const std::size_t line_number,
+    std::vector<OCRWord>& word_vec_arg,
+    const cv::Rect& bbox,
+    std::vector<cv::Rect>& word_ocr_bbox_vec_arg,
+    std::vector<cv::Rect>& symbol_ocr_bbox_vec_arg)
+    : subtitle_number(subtitle_number),
+      line_number(line_number),
+      word_vec(),
+      priv_bbox(bbox),
+      word_ocr_bbox_vec(),
+      symbol_ocr_bbox_vec() {
+  word_vec.swap(word_vec_arg);
+  word_ocr_bbox_vec.swap(word_ocr_bbox_vec_arg);
+  // Tesseract does seem to sort bboxes, but not by x coordinate and then
+  // width (maybe by their center?)
+  bboxes_sort(word_ocr_bbox_vec);
+  symbol_ocr_bbox_vec.swap(symbol_ocr_bbox_vec_arg);
+  // Tesseract does seem to sort bboxes, but not by x coordinate and then
+  // width (maybe by their center?)
+  bboxes_sort(symbol_ocr_bbox_vec);
+}
+
 std::size_t
 OCRLine::num_ocr_symbols() const {
   std::size_t num = 0;
@@ -31,6 +60,113 @@ OCRLine::num_ocr_symbols() const {
     num += word_vec[i].num_ocr_symbols();
   }
   return num;
+}
+
+std::ostream&
+OCRLine::write(
+    std::ostream& os) const {
+  for (std::size_t word_i = 0; word_i < word_vec.size(); word_i++) {
+    if (word_i > 0) {
+      os << ' ';
+    }
+    word_vec[word_i].write(os);
+  }
+  os << std::endl;
+  return os;
+}
+
+// does not fully validate:
+// - does not validate byte 2,3,4
+// - does not check for overlong encodings
+// returns empty string on error
+std::string
+get_utf8_char(
+    const std::string& src,
+    const std::size_t pos) {
+
+  std::string dst;
+
+  if (pos < src.size()) {
+    unsigned char c0 = src[pos];
+
+    if (c0 <= 0x7f) {
+      dst.push_back(src[pos]);
+    }
+    else if ((c0 & 0xE0) == 0xC0) {
+      if ((pos + 1) < src.size()) {
+	dst.push_back(src[pos]);
+	dst.push_back(src[pos + 1]);
+      }
+    }
+    else if ((c0 & 0xF0) == 0xE0) {
+      if ((pos + 2) < src.size()) {
+	dst.push_back(src[pos]);
+	dst.push_back(src[pos + 1]);
+	dst.push_back(src[pos + 2]);
+      }
+    }
+    else if ((c0 & 0xF8) == 0xF0) {
+      if ((pos + 3) < src.size()) {
+	dst.push_back(src[pos]);
+	dst.push_back(src[pos + 1]);
+	dst.push_back(src[pos + 2]);
+	dst.push_back(src[pos + 3]);
+      }
+    }
+  }
+
+  return dst;
+}
+
+void
+OCRLine::read(
+    std::istream& is) {
+
+  std::string line;
+
+  if (!std::getline(is, line)) {
+    std::stringstream ss;
+    ss << "subtitle " << subtitle_number <<
+      ", line " << line_number <<
+      ": could not read modified line after replacements";
+    throw generic_exception(ss.str());
+  }
+
+  std::stringstream line_ss(line);
+  std::istream_iterator<std::string> begin(line_ss);
+  std::istream_iterator<std::string> end;
+  const std::vector<std::string> words(begin, end);
+
+  word_vec.clear();
+  std::size_t word_number = 1;
+  for (const auto & word_it : words) {
+    std::vector<OCRSymbol> symbol_vec;
+
+    for (std::size_t pos = 0; pos < word_it.size(); ) {
+      std::string utf8_symbol = get_utf8_char(word_it, pos);
+      if (utf8_symbol.size() == 0) {
+	std::stringstream ss;
+	ss << "subtitle " << subtitle_number <<
+	  ", line " << line_number <<
+	  ", word " << word_number <<
+	  ", byte " << pos + 1 <<
+	  "invalid UTF-8 sequence";
+	throw generic_exception(ss.str());
+      }
+
+      symbol_vec.emplace_back(utf8_symbol);
+
+      pos += utf8_symbol.size();
+    }
+
+    word_vec.emplace_back(
+	subtitle_number,
+	line_number,
+	word_number,
+	std::move(symbol_vec));
+
+    word_number++;
+  }
 }
 
 // Goals:
@@ -104,7 +240,7 @@ OCRLine::bboxes_assign(
     //   any word OCR bbox.
     // - OCR has produced a word OCR bbox that is too narrow and does not
     //   cover all of the symbols of the word completely.
-    if (!word_bboxes_bound_all_symbol_bboxes(nwv, nsv)) {
+    if (!word_bboxes_bound_all_symbol_bboxes(nwv, nsv) || nwv.size() != word_vec.size()) {
       std::vector<cv::Rect> tmp;
 
       // Fixing word bboxes is not simple if there are also
@@ -231,49 +367,66 @@ OCRLine::bboxes_assign(
     }
   }
 
-  // if word bboxes are really bad and span multiple words,
-  // or OCR has split a word into two (in word_vec),
-  // the improved bboxes can end up with fewer or more words
-  // in that case, fall back to the original word_ocr_bbox_vec.
-  // TODO: improve more.
-  std::vector<cv::Rect> *word_bbox_vec =
-    (word_vec.size() == nwv.size()) ? &nwv : &word_ocr_bbox_vec;
-
-  // now assign symbol bboxes to symbols
   bool success = true;
-  for (std::size_t word_i = 0; word_i < word_vec.size(); word_i++) {
-    OCRWord &word = word_vec[word_i];
-    const cv::Rect wr = (*word_bbox_vec)[word_i];
-    std::vector<cv::Rect> cands;
-
+ 
+  // If word bboxes are really bad and span multiple words, or OCR has split a
+  // word into two (in word_vec), the improved bboxes can end up with fewer or
+  // more words. In that case, fall back to the original word_ocr_bbox_vec,
+  // if possible.
+  //
+  // Note: word_ocr_bbox_vec may no longer have the same number of entries as
+  // word_vec after regular expresssion replacements have been applied.
+  std::vector<cv::Rect> *word_bbox_vec = NULL;
+  if (nwv.size() == word_vec.size()) {
+    word_bbox_vec = &nwv;
+  }
+  else if (word_ocr_bbox_vec.size() == word_vec.size()) {
+    word_bbox_vec = &word_ocr_bbox_vec;
+  }
+  else {
     if (debug || subtitle_number == debug_subtitle_number) {
-      cerr_log() << ", word " << (word_i + 1) << ": " << word << std::endl;
+      // TODO do better above.
+      cerr_log() << ": number of words does not match number of word bboxes" << std::endl;
     }
+    success = false;
+  }
 
-    bboxes_get_word_candidates(wr, nsv, cands);
+  if (success) {
+    // now assign symbol bboxes to symbols
+    for (std::size_t word_i = 0; word_i < word_vec.size(); word_i++) {
+      OCRWord &word = word_vec[word_i];
+      const cv::Rect wr = (*word_bbox_vec)[word_i];
+      std::vector<cv::Rect> cands;
 
-    if (debug || subtitle_number == debug_subtitle_number) {
-      if (debug_ext.size()) {
-	std::stringstream ss;
-	ss << subname << "-" << subtitle_number << "-" << line_number << "-" << (word_i + 1) << "-word-cands." << debug_ext;
-	cv::imwrite(ss.str(), bboxes_draw(img, bordered_bbox(), cands));
+      if (debug || subtitle_number == debug_subtitle_number) {
+	cerr_log() << ", word " << (word_i + 1) << ": " << word << std::endl;
       }
-      cerr_log() << ", word " << (word_i + 1) << ": " << word << ": improved symbol bboxes for word: ";
-      bboxes_stream(std::cerr, cands) << std::endl;
-    }
 
-    if (word.bboxes_assign(img, cands, stats, false)) {
+      bboxes_get_word_candidates(wr, nsv, cands);
+
       if (debug || subtitle_number == debug_subtitle_number) {
 	if (debug_ext.size()) {
 	  std::stringstream ss;
-	  ss << subname << "-" << subtitle_number << "-" << line_number << "-" << (word_i + 1) << "-symbol-assigned-bboxes." << debug_ext;
-	  cv::imwrite(ss.str(), word_symbol_bboxes_draw(word_i, img, 128));
+	  ss << subname << "-" << subtitle_number << "-" << line_number << "-" << (word_i + 1) << "-word-cands." << debug_ext;
+	  cv::imwrite(ss.str(), bboxes_draw(img, bordered_bbox(), cands));
 	}
-	cerr_log() << ", word " << (word_i + 1) << ": " << word << ": assigned symbol bboxes for word: ";
+	cerr_log() << ", word " << (word_i + 1) << ": " << word << ": improved symbol bboxes for word: ";
 	bboxes_stream(std::cerr, cands) << std::endl;
       }
-    } else {
-      success = false;
+
+      if (word.bboxes_assign(img, cands, stats, false)) {
+	if (debug || subtitle_number == debug_subtitle_number) {
+	  if (debug_ext.size()) {
+	    std::stringstream ss;
+	    ss << subname << "-" << subtitle_number << "-" << line_number << "-" << (word_i + 1) << "-symbol-assigned-bboxes." << debug_ext;
+	    cv::imwrite(ss.str(), word_symbol_bboxes_draw(word_i, img, 128));
+	  }
+	  cerr_log() << ", word " << (word_i + 1) << ": " << word << ": assigned symbol bboxes for word: ";
+	  bboxes_stream(std::cerr, cands) << std::endl;
+	}
+      } else {
+	success = false;
+      }
     }
   }
 
@@ -427,22 +580,6 @@ OCRLine::dump(std::ostream& os) const {
   for (const auto& it : word_vec) {
     it.dump(os);
   }
-}
-
-void
-OCRLine::init(
-    std::vector<OCRWord>& word_vec_arg,
-    std::vector<cv::Rect>& word_ocr_bbox_vec_arg,
-    std::vector<cv::Rect>& symbol_ocr_bbox_vec_arg) {
-  word_vec.swap(word_vec_arg);
-  word_ocr_bbox_vec.swap(word_ocr_bbox_vec_arg);
-  // Tesseract does seem to sort bboxes, but not by x coordinate and then
-  // width (maybe by their center?)
-  bboxes_sort(word_ocr_bbox_vec);
-  symbol_ocr_bbox_vec.swap(symbol_ocr_bbox_vec_arg);
-  // Tesseract does seem to sort bboxes, but not by x coordinate and then
-  // width (maybe by their center?)
-  bboxes_sort(symbol_ocr_bbox_vec);
 }
 
 std::ostream&

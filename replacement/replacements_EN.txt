@@ -1,0 +1,54 @@
+# Regular expression format is Modified ECMAScript
+#
+# See https://en.cppreference.com/cpp/regex/ecmascript for the full reference.
+#
+# Match pattern basics:
+# a|b      a or b
+# [a-c]    a, b, or c.
+# [^a-c]   none of a, b, or c.
+# (a|b)    group a or b, can be referrred to in the replacement pattern with
+#          \1, \2, etc.
+#
+# ?        0 or 1 times character a
+# *        0 or more times
+# +        1 or more times times
+# {3}      3 times
+# {3,}     3 or more times
+# {3,5}    3, 4, or 5 times
+# \b       word boundary
+# \B       inside a word
+#
+# ^        begin of line
+# $        end of line
+#
+# Replacement pattern basics:
+#
+# \\       a literal backspace
+# \1       whatever the first () in the match pattern matched
+# \2       etc.
+#
+# To get a good result, after replacements have been applied, the number of
+# lines should still be the same, and no lines should have been inserted or
+# removed.
+
+\bl\b
+I
+
+\blL\b
+I
+
+\blll\b
+I'll
+
+^-([^ ])
+- \1
+
+\‘
+'
+
+\’
+'
+
+[“”]
+"
+

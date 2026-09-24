@@ -1,7 +1,7 @@
 /*
  *  This file is part of vobsub2srt
  *
- *  Copyright (C) 2026 Bastiaan Stougie <wififreedm2026@protonmail.com>
+ *  Copyright (C) 2026 Bastiaan Stougie <wififreedom2026@protonmail.com>
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -28,10 +28,10 @@ write_pts(
   std::ostream& os,
   const unsigned pts) {
   return os << std::format("{:02}:{:02}:{:02},{:03}",
-      pts / (90 * 1000 * 3600) /* hour */,
+      pts / (90 * 1000 * 3600) /* hours */,
       (pts / (90 * 1000 * 60)) % 60 /* minutes */,
       (pts / (90 * 1000)) % 60 /* seconds */,
-      (pts / 90) % 1000 /* mlliseconds */);
+      (pts / 90) % 1000 /* milliseconds */);
 }
 
 void
@@ -98,6 +98,23 @@ OCRSubtitle::detect_italic(
   }
 
   return line_fail_count;
+}
+
+std::ostream&
+OCRSubtitle::write(
+    std::ostream& os) const {
+  for (const auto& it : line_vec) {
+    it.write(os);
+  }
+  return os;
+}
+
+void
+OCRSubtitle::read(
+    std::istream& is) {
+  for (auto & it : line_vec) {
+    it.read(is);
+  }
 }
 
 void

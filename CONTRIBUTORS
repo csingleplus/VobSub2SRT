@@ -1,6 +1,11 @@
 Most code is from the MPlayer project.
 - Bastiaan Stougie <wififreedom2026@protonmail.com>
   Sep. 2026:
+  - option --replacements FILE
+    Specify a file with regular expression match patterns and replacement
+    patterns. The replacements will be applied immediately after OCR, before
+    optional italic detection. A sample replacements file is available in the
+    source code repository: replacements/replacements_EN.txt
   - option --detect-italic:
     Detect text that is italic and mark it as such in the output .srt file with
     <i> and </i> tags. Uses OpenCV contour detection to improve bounding boxes

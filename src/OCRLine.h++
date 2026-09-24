@@ -1,7 +1,7 @@
 /*
  *  This file is part of vobsub2srt.
  *
- *  Copyright (C) 2026 Bastiaan Stougie <wififreedm2026@protonmail.com>
+ *  Copyright (C) 2026 Bastiaan Stougie <wififreedom2026@protonmail.com>
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -33,18 +33,7 @@ public:
       std::vector<OCRWord>& word_vec_arg,
       const cv::Rect& bbox,
       std::vector<cv::Rect>& word_ocr_bbox_vec_arg,
-      std::vector<cv::Rect>& symbol_ocr_bbox_vec_arg)
-      : subtitle_number(subtitle_number),
-	line_number(line_number),
-	word_vec(),
-	priv_bbox(bbox),
-	word_ocr_bbox_vec(),
-	symbol_ocr_bbox_vec() {
-    init(
-      word_vec_arg,
-      word_ocr_bbox_vec_arg,
-      symbol_ocr_bbox_vec_arg);
-  }
+      std::vector<cv::Rect>& symbol_ocr_bbox_vec_arg);
 
   cv::Rect
   bbox() const {
@@ -55,17 +44,28 @@ public:
   std::size_t
   num_ocr_symbols() const;
 
-  bool bboxes_assign(
+  std::ostream&
+  write(
+      std::ostream& os) const;
+
+  void
+  read(
+      std::istream& is);
+
+  bool
+  bboxes_assign(
       const std::string & subname,
       const cv::Mat& img,
       const std::vector<cv::Rect>& symbol_contour_bbox_vec,
       const TextStats* const stats);
 
-  void build_stats(
+  void
+  build_stats(
       const cv::Mat& img,
       TextStats& stats) const;
 
-  void bboxes_remove();
+  void
+  bboxes_remove();
 
   void
   assign_confidence(
@@ -89,12 +89,6 @@ public:
      std::ostream& os) const;
 
 private:
-  void
-  init(
-      std::vector<OCRWord>& word_vec_arg,
-      std::vector<cv::Rect>& word_ocr_bbox_vec_arg,
-      std::vector<cv::Rect>& symbol_ocr_bbox_vec_arg);
-
   std::ostream&
   cerr_log() const;
 

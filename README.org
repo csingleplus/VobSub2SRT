@@ -97,10 +97,16 @@ my-movie-subtitle.idx
 my-movie-subtitle.sub
 #+END_EXAMPLE
 
+Replacements file, see [[https://github.com/wififreedom/VobSub2SRT/replacement/replacements_EN.txt][example]]:
+
+#+BEGIN_EXAMPLE
+replacements_EN.txt
+#+END_EXAMPLE
+
 Command:
 
 #+BEGIN_EXAMPLE
-  vobsub2srt --detect-italic --base-duration 1500 --chars-per-sec 19 --tesseract-lang 'eng+fra' my-movie-subtitle
+vobsub2srt --replacements replacements_EN.txt --detect-italic --base-duration 1500 --chars-per-sec 19 --tesseract-lang 'eng+fra' my-movie-subtitle
 #+END_EXAMPLE
 
 Output file:

@@ -25,6 +25,7 @@
 // Builtins/standard libs
 #include <fstream>
 #include <format>
+#include <regex>
 
 // Language and option handling.
 #include "langcodes.h++"
@@ -34,6 +35,7 @@
 // Italics detection with help of opencv
 #include "debug.h++"
 #include "OCRSubtitles.h++"
+#include "Replacements.h++"
 #include "VobSub.h++"
 
 #include <opencv2/imgcodecs.hpp>
@@ -54,10 +56,11 @@ main2(int argc, char **argv) {
   int index = -1;
   int y_threshold = 16;
   std::size_t ocr_batch_size = 20;
+  std::string replacements_file_name;
   bool detect_italic = false;
   int base_duration = 0;
   int chars_per_sec = 19;
-  
+
   {
     cmd_options opts;
     int debug_st_num = 0;
@@ -79,6 +82,7 @@ main2(int argc, char **argv) {
       add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\")").
       add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (Default: 16)").
       add_option("ocr-batch-size", batch_size, "Perform OCR on combined images. Can fix empty or inaccurate OCR results. (Default: 20).").
+      add_option("replacements", replacements_file_name, "Immediately after, apply the replacements defined in the specified file. File format: (ECMAScript-regex<newline>Sed-style-Replacement<newline><newline>)*").
       add_option("detect-italic", detect_italic, "Detect italic. Add <i> and </i> to the output where applicable.").
       add_option("base-duration", base_duration, "Max subtitle display duration (msec) = base_duration + 1000 * subtitle_length_in_chars / chars_per_sec (Default: 0 = disable, recommended: 1500)").
       add_option("chars-per-sec", chars_per_sec, "See --base-duration (Default: 19, recommended: 15..20).");
@@ -282,6 +286,10 @@ main2(int argc, char **argv) {
   }
 
   subtitles.do_ocr(tess_base_api, ocr_batch_size);
+
+  if (!replacements_file_name.empty()) {
+    subtitles.correct_ocr(replacements_file_name);
+  }
 
   if (detect_italic) {
     subtitles.detect_italic();

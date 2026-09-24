@@ -1,7 +1,7 @@
 /*
  *  This file is part of vobsub2srt
  *
- *  Copyright (C) 2026 Bastiaan Stougie <wififreedm2026@protonmail.com>
+ *  Copyright (C) 2026 Bastiaan Stougie <wififreedom2026@protonmail.com>
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -124,14 +124,6 @@ OCRWord::assign_confidence(
   }
 }
 
-std::ostream&
-OCRWord::write(std::ostream& os) const {
-  for (const auto& it : symbol_vec) {
-    os << it.utf8_symbol();
-  }
-  return os;
-}
-
 void
 OCRWord::derive_confidence() {
   // Compute italic_confidence from symbols
@@ -176,6 +168,15 @@ OCRWord::derive_confidence(
   return false;
 }
 
+
+std::ostream&
+OCRWord::write(
+    std::ostream& os) const {
+  for (const auto& it : symbol_vec) {
+    it.write(os);
+  }
+  return os;
+}
 
 // only words are italic, not punctuation.
 std::ostream&

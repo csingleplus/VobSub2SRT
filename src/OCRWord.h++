@@ -1,7 +1,7 @@
 /*
  *  This file is part of vobsub2srt.
  *
- *  Copyright (C) 2026 Bastiaan Stougie <wififreedm2026@protonmail.com>
+ *  Copyright (C) 2026 Bastiaan Stougie <wififreedom2026@protonmail.com>
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -83,10 +83,6 @@ public:
       const cv::Mat& img,
       const TextStats& stats);
 
-  std::ostream&
-  write(
-      std::ostream& os) const;
-
   void
   derive_confidence();
 
@@ -94,6 +90,10 @@ public:
   derive_confidence(
       const float left_confidence,
       const float right_confidence);
+
+  std::ostream&
+  write(
+      std::ostream& os) const;
 
   // only words are italic, not punctuation.
   std::ostream&

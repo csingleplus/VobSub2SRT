@@ -1,7 +1,7 @@
 /*
  *  This file is part of vobsub2srt.
  *
- *  Copyright (C) 2026 Bastiaan Stougie <wififreedm2026@protonmail.com>
+ *  Copyright (C) 2026 Bastiaan Stougie <wififreedom2026@protonmail.com>
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -43,6 +43,14 @@ public:
   start_pts_get() const {
     return start_pts;
   }
+
+  std::ostream&
+  write(
+      std::ostream& os) const;
+
+  void
+  read(
+      std::istream& is);
 
   void bboxes_assign(
     const std::string& subname,

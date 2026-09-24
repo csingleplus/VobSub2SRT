@@ -1,7 +1,7 @@
 /*
  *  This file is part of vobsub2srt
  *
- *  Copyright (C) 2026 Bastiaan Stougie <wififreedm2026@protonmail.com>
+ *  Copyright (C) 2026 Bastiaan Stougie <wififreedom2026@protonmail.com>
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 
 #include "generic_exception.h++"
 #include "debug.h++"
+#include "Replacements.h++"
 
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -279,6 +280,29 @@ OCRSubtitles::do_ocr(
 }
 
 void
+OCRSubtitles::correct_ocr(
+    const std::string& replacements_file_name) {
+
+  Replacements repl(replacements_file_name);
+  repl.read();
+
+  std::stringstream ss;
+  {
+    // reserve space
+    std::string tmp;
+    // string remains empty, but is pre-allocated
+    tmp.reserve(64 * 1024);
+    ss.str(std::move(tmp));
+  }
+  write(ss);
+
+  std::istringstream iss;
+  iss.str(repl.replace(ss.str()));
+
+  read(iss);
+}
+
+void
 OCRSubtitles::detect_italic() {
   // Strategy:
   // - Perform OCR on all subtitles (only once). This has already been
@@ -361,6 +385,29 @@ OCRSubtitles::write_srt(
 	show,
 	((i + 1) < subtitle_vec.size()) ? 
 	  std::optional(subtitle_vec[i + 1].start_pts_get()) : std::nullopt);
+  }
+}
+
+void
+OCRSubtitles::bboxes_assign(
+    TextStats* const stats) {
+  for (auto& it : subtitle_vec) {
+    it.bboxes_assign(subname, stats);
+  }
+}
+
+void
+OCRSubtitles::build_stats(
+    TextStats& stats) const {
+  for (const auto& it : subtitle_vec) {
+    it.build_stats(stats);
+  }
+}
+
+void
+OCRSubtitles::bboxes_remove() {
+  for (auto& it : subtitle_vec) {
+    it.bboxes_remove();
   }
 }
 
@@ -548,26 +595,20 @@ OCRSubtitles::batch_ocr(
   }
 }
 
-void
-OCRSubtitles::bboxes_assign(
-    TextStats* const stats) {
-  for (auto& it : subtitle_vec) {
-    it.bboxes_assign(subname, stats);
-  }
-}
-
-void
-OCRSubtitles::build_stats(
-    TextStats& stats) const {
+std::ostream&
+OCRSubtitles::write(
+    std::ostream& os) const {
   for (const auto& it : subtitle_vec) {
-    it.build_stats(stats);
+    it.write(os);
   }
+  return os;
 }
 
 void
-OCRSubtitles::bboxes_remove() {
-  for (auto& it : subtitle_vec) {
-    it.bboxes_remove();
+OCRSubtitles::read(
+    std::istream& is) {
+  for (auto & it : subtitle_vec) {
+    it.read(is);
   }
 }
 

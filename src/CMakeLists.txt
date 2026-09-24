@@ -28,6 +28,8 @@ set(vobsub2srt_sources
   OCRSubtitle.c++
   OCRSubtitles.h++
   OCRSubtitles.c++
+  Replacements.h++
+  Replacements.c++
   VobSub.h++
   VobSub.c++)
 

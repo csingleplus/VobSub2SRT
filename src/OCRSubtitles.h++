@@ -1,7 +1,7 @@
 /*
  *  This file is part of vobsub2srt.
  *
- *  Copyright (C) 2026 Bastiaan Stougie <wififreedm2026@protonmail.com>
+ *  Copyright (C) 2026 Bastiaan Stougie <wififreedom2026@protonmail.com>
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -38,18 +38,6 @@ private:
 	const unsigned sp_width,
 	const unsigned sp_height,
 	const unsigned sp_stride);
-#if 0
-    {
-      init(
-	subtitle_number,
-	start_pts,
-	end_pts,
-	sp_image,
-	sp_width,
-	sp_height,
-	sp_stride);
-    }
-#endif
 
     std::size_t subtitle_number;
     uint32_t start_pts;
@@ -64,7 +52,7 @@ private:
 
 public:
   OCRSubtitles(
-      const std::string &subname);
+      const std::string& subname);
 
   bool
   append(
@@ -82,6 +70,10 @@ public:
       const std::size_t ocr_batch_size);
 
   void
+  correct_ocr(
+      const std::string& replacements_file_name);
+
+  void
   detect_italic();
 
   void
@@ -91,7 +83,6 @@ public:
       const int chars_per_sec,
       const bool show);
 
-private:
   void
   bboxes_assign(
       TextStats * const stats);
@@ -103,12 +94,21 @@ private:
   void
   bboxes_remove();
 
+private:
   void
   batch_ocr(
       tesseract::TessBaseAPI& tess_base_api,
       const cv::Mat& combined_img,
       const std::size_t batch_i,
       const std::size_t batch_end_i);
+
+  std::ostream&
+  write(
+      std::ostream& os) const;
+
+  void
+  read(
+      std::istream& is);
 
 private:
   std::string subname;
