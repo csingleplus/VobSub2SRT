@@ -231,11 +231,11 @@ int main(int argc, char **argv) {
     std::cout << "Languages:\n";
     for(size_t i = 0; i < vobsub_get_indexes_count(vob); ++i) {
       char const *const id = vobsub_get_id(vob, i);
-      std::cout << i << ": " << (id ? id : "(no id)") << '\n';
-      vobsub_close(vob);
-      spudec_free(spu);
-      mp_msg_uninit();
+      std::cout << i << ": " << (id ? id : "(no id. that's odd. may cause problems, please report if so.)") << '\n';
     }
+    vobsub_close(vob);
+    spudec_free(spu);
+    mp_msg_uninit();
     return 0;
   }
   
