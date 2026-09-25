@@ -36,7 +36,7 @@ write_pts(
 
 void
 OCRSubtitle::bboxes_assign(
-  const std::string & subname,
+  const std::string& subname,
   const TextStats * const stats) {
 
   for (std::size_t i = 0; i < line_vec.size(); i++) {
@@ -79,7 +79,7 @@ OCRSubtitle::detect_italic(
   std::size_t line_fail_count = 0;
 
   for (std::size_t tl_i = 0; tl_i < line_vec.size(); tl_i++) {
-    OCRLine &line = line_vec[tl_i];
+    OCRLine& line = line_vec[tl_i];
 
     line.assign_confidence(img, stats);
 
@@ -106,7 +106,7 @@ OCRSubtitle::write(
 void
 OCRSubtitle::read(
     std::istream& is) {
-  for (auto & it : line_vec) {
+  for (auto& it : line_vec) {
     it.read(is);
   }
 }
@@ -140,7 +140,7 @@ OCRSubtitle::write_srt(
   write_pts(os, start_pts) << " --> ";
   write_pts(os, end_pts) << std::endl;
 
-  for (const auto & it : line_vec) {
+  for (const auto& it : line_vec) {
     if (show) {
       std::cout << "Subtitle " << subtitle_number << ": ";
       it.write_srt(std::cout);

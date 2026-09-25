@@ -115,7 +115,7 @@ OCRSymbol::assign_confidence(
   }
 
   if (priv_bboxes.size() == 1) {
-    cv::Rect &bbox = priv_bboxes[0];
+    cv::Rect& bbox = priv_bboxes[0];
 
     // TODO see if we can base the constants -1.8 on something (bbox width?)
 

@@ -38,7 +38,7 @@ public:
 
   std::optional<float> avg() const;
 
-  void dump(std::ostream & os) const;
+  void dump(std::ostream& os) const;
 
 private:
   int priv_min;
@@ -117,7 +117,7 @@ public:
   symbol_spacing_avg() const;
 
   void dump(
-      std::ostream &os) const;
+      std::ostream& os) const;
 
 private:
   MinAvgMaxStat word_spacing_stat;

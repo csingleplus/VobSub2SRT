@@ -139,7 +139,7 @@ OCRLine::read(
 
   std::vector<OCRWord> new_word_vec;
   std::size_t word_number = 1;
-  for (const auto & word_it : words) {
+  for (const auto& word_it : words) {
     std::vector<OCRSymbol> symbol_vec;
 
     for (std::size_t pos = 0; pos < word_it.size(); ) {
@@ -191,9 +191,9 @@ OCRLine::read(
 // then the method is called again with stats != NULL.
 bool
 OCRLine::bboxes_assign(
-    const std::string & subname,
+    const std::string& subname,
     const cv::Mat& img,
-    std::vector<cv::Rect> const & symbol_contour_bbox_vec,
+    const std::vector<cv::Rect>& symbol_contour_bbox_vec,
     const TextStats * const stats) {
   // About symbol_contour_bbox_vec: These are bounding boxes for the symbols
   // in the line, detected with (opencv) contour detection. They are
@@ -290,7 +290,7 @@ OCRLine::bboxes_assign(
 	// first evaluate possible merges
 	std::vector<std::size_t> possibles;
 	for (std::size_t word_i = 0; (word_i + 1) < word_vec.size(); word_i++) {
-	  OCRWord &cw = word_vec[word_i];
+	  OCRWord& cw = word_vec[word_i];
 
 	  const cv::Rect cr = tmp[word_i];
 	  const cv::Rect nr = tmp[word_i + 1];
@@ -346,7 +346,7 @@ OCRLine::bboxes_assign(
 	    cerr_log() << ": bboxes_assign: word bboxes: FAILED: " <<
 	      "merge possibilities inconclusive: " <<
 	      possibles.size() << " possibles:";
-	    for (const auto & it : possibles) {
+	    for (const auto& it : possibles) {
 	      std::cerr << " " << it;
 	    }
 	    std::cerr <<  std::endl;
@@ -405,7 +405,7 @@ OCRLine::bboxes_assign(
   if (success) {
     // now assign symbol bboxes to symbols
     for (std::size_t word_i = 0; word_i < word_vec.size(); word_i++) {
-      OCRWord &word = word_vec[word_i];
+      OCRWord& word = word_vec[word_i];
       const cv::Rect wr = (*word_bbox_vec)[word_i];
       std::vector<cv::Rect> cands;
 
@@ -456,8 +456,8 @@ OCRLine::bboxes_assign(
 void
 OCRLine::build_stats(
     const cv::Mat& img,
-    TextStats &stats) const {
-  for (auto &it : word_vec) {
+    TextStats& stats) const {
+  for (auto& it : word_vec) {
     it.build_stats(img, stats);
   }
 
@@ -501,7 +501,7 @@ OCRLine::propagate_word_confidence() {
     made_change = false;
 
     for (std::size_t word_i = 0; word_i < word_vec.size(); word_i++) {
-      OCRWord &word = word_vec[word_i];
+      OCRWord& word = word_vec[word_i];
 
       if (!CONFIDENT_NOT_ITALIC(word.italic_confidence()) &&
 	  !CONFIDENT_ITALIC(word.italic_confidence())) {
@@ -527,13 +527,13 @@ OCRLine::propagate_word_confidence() {
 }
 
 void
-OCRLine::write_srt(std::ostream & os) const {
+OCRLine::write_srt(std::ostream& os) const {
   // Only look at italic_confidence of words, not of symbols.
   bool entire_line_is_italic = true;
   bool in_italic = false;
   for (std::size_t word_i = 0; word_i < word_vec.size(); word_i++) {
     const bool word_is_last = ((word_i + 1) == word_vec.size());
-    const OCRWord &word = word_vec[word_i];
+    const OCRWord& word = word_vec[word_i];
 
     const bool word_is_italic = CONFIDENT_ITALIC(word.italic_confidence());
     if (!word_is_italic && !(word_i == 0 && word.is_minus())) {
@@ -700,7 +700,7 @@ OCRLine::symbol_bboxes_remove_invalid(
 
   const int dq_y_limit = priv_bbox.y + (priv_bbox.height / 2);
 
-  for (auto & it : src) {
+  for (auto& it : src) {
     const bool maybe_double_quote = ((it.y + it.height) < dq_y_limit);
 
     if (!bbox_is_invalid(img, it, !maybe_double_quote)) {
@@ -799,7 +799,7 @@ OCRLine::symbol_bboxes_replace_combined(
   std::size_t src_i = 0;
   std::size_t src2_i = 0;
   while (src_i < src.size()) {
-    const cv::Rect &r = src[src_i];
+    const cv::Rect& r = src[src_i];
 
     while ((src2_i < src2.size()) && (src2[src2_i].x < r.x)) {
       src2_i++;
@@ -869,11 +869,11 @@ OCRLine::symbol_bboxes_remove_inaccurate_overlapping(
   // Now we look at where previous and next bbox touch or in case
   // of italic, slightly overlap.
   for (std::size_t i = 0; i < src.size(); i++) {
-    const cv::Rect &r = src[i];
+    const cv::Rect& r = src[i];
 
     if ((i > 0) && ((i + 1) < src.size())) {
-      const cv::Rect &p = src[i - 1];
-      const cv::Rect &n = src[i + 1];
+      const cv::Rect& p = src[i - 1];
+      const cv::Rect& n = src[i + 1];
       if (/* current overlaps prev */
 	  (r.x < (p.x + p.width)) &&
 	  /* current overlaps next */
@@ -896,9 +896,9 @@ OCRLine::symbol_bboxes_remove_overlapped_by_1(
   dst.clear();
 
   for (std::size_t i = 0; i < src.size(); i++) {
-    const cv::Rect &r = src[i];
+    const cv::Rect& r = src[i];
     if (dst.size()) {
-      const cv::Rect &p = dst.back();
+      const cv::Rect& p = dst.back();
       if ((r.x + r.width) <= (p.x + p.width)) {
 	// skip r
 	continue;
@@ -906,7 +906,7 @@ OCRLine::symbol_bboxes_remove_overlapped_by_1(
     }
 
     if ((i + 1) < src.size()) {
-      const cv::Rect &n = src[i + 1];
+      const cv::Rect& n = src[i + 1];
       if (r.x == n.x && (r.x + r.width) <= (n.x + n.width)) {
 	// skip r
 	continue;
@@ -919,7 +919,7 @@ OCRLine::symbol_bboxes_remove_overlapped_by_1(
 
 void
 OCRLine::symbol_bboxes_improve(
-    const std::string & subname,
+    const std::string& subname,
     const cv::Mat& img,
     const std::vector<cv::Rect>& src, // ocr bboxes
     const std::vector<cv::Rect>& src2, // contour bboxes
@@ -1006,7 +1006,7 @@ OCRLine::word_bboxes_remove_invalid(
 
   dst.clear();
 
-  for (auto & it : src) {
+  for (auto& it : src) {
     if (!bbox_is_invalid(img, it, false)) {
       dst.emplace_back(it);
     }
@@ -1034,7 +1034,7 @@ OCRLine::word_bboxes_remove_too_much_spacing(
 
   const int max_spacing = std::max(min_word_spacing_opt.value(), (int)(2 * avg_symbol_spacing_opt.value()));
 
-  for (auto & it : src) {
+  for (auto& it : src) {
     const int max_seq_white_columns = bbox_max_seq_white_columns(img, it);
     if (max_seq_white_columns <= max_spacing) {
       dst.emplace_back(it);
@@ -1044,7 +1044,7 @@ OCRLine::word_bboxes_remove_too_much_spacing(
 
 void
 OCRLine::word_bboxes_improve(
-    const std::string &subname,
+    const std::string& subname,
     const cv::Mat& img,
     const std::vector<cv::Rect>& src,
     const std::vector<cv::Rect>& /* symbol_src */,
@@ -1188,7 +1188,7 @@ OCRLine::word_bboxes_fill_gaps_and_combine_based_on_spacing(
 void
 OCRLine::bboxes_get_word_candidates(
   const cv::Rect word,
-  const std::vector<cv::Rect> &src,
+  const std::vector<cv::Rect>& src,
   std::vector<cv::Rect>& dst) {
 
   dst.clear();

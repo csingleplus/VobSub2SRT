@@ -54,7 +54,7 @@ public:
 
   bool
   bboxes_assign(
-      const std::string & subname,
+      const std::string& subname,
       const cv::Mat& img,
       const std::vector<cv::Rect>& symbol_contour_bbox_vec,
       const TextStats* const stats);
@@ -102,7 +102,7 @@ private:
 
   // dst will be cleared first.
   void symbol_bboxes_remove_invalid(
-      const cv::Mat &img,
+      const cv::Mat& img,
       const std::vector<cv::Rect>& src,
       std::vector<cv::Rect>& dst);
 
@@ -138,7 +138,7 @@ private:
   // - or nearly 100% accurate and not harmful in edge cases.
   // src and dst can be the same vector without conflict
   void symbol_bboxes_improve(
-      const std::string & subname,
+      const std::string& subname,
       const cv::Mat& img,
       const std::vector<cv::Rect>& src, // ocr bboxes
       const std::vector<cv::Rect>& src2, // contour bboxes
@@ -164,7 +164,7 @@ private:
       const TextStats& stats);
 
   void word_bboxes_improve(
-      const std::string &subname,
+      const std::string& subname,
       const cv::Mat& img,
       const std::vector<cv::Rect>& src, // word ocr bboxes
       const std::vector<cv::Rect>& symbol_src, // improved symbol bboxes

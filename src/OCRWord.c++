@@ -95,8 +95,8 @@ OCRWord::build_stats(
 
   // symbol spacing within a word
   for (std::size_t i = 1; i < symbol_vec.size(); i++) {
-    const OCRSymbol &p = symbol_vec[i - 1];
-    const OCRSymbol &c = symbol_vec[i];
+    const OCRSymbol& p = symbol_vec[i - 1];
+    const OCRSymbol& c = symbol_vec[i];
 
     if (c.bboxes().size() == 1 && p.bboxes().size() == 1) {
       const int space_pixels = c.bboxes()[0].x -
@@ -180,7 +180,7 @@ OCRWord::write(
 
 // only words are italic, not punctuation.
 std::ostream&
-OCRWord::write_srt_punct_at_begin(std::ostream & os) const {
+OCRWord::write_srt_punct_at_begin(std::ostream& os) const {
   const std::size_t num = num_punct_at_begin();
 
   for (std::size_t i = 0; i < num; i++) {
@@ -191,7 +191,7 @@ OCRWord::write_srt_punct_at_begin(std::ostream & os) const {
 
 // only words are italic, not punctuation.
 std::ostream&
-OCRWord::write_srt_between_punct(std::ostream & os) const {
+OCRWord::write_srt_between_punct(std::ostream& os) const {
   const std::size_t num_at_end = num_punct_at_end();
   if (num_at_end == symbol_vec.size()) {
     // already written by write_srt_punct_at_begin
@@ -207,7 +207,7 @@ OCRWord::write_srt_between_punct(std::ostream & os) const {
 
 // only words are italic, not punctuation.
 std::ostream&
-OCRWord::write_srt_punct_at_end(std::ostream & os) const {
+OCRWord::write_srt_punct_at_end(std::ostream& os) const {
   const std::size_t num_at_end = num_punct_at_end();
   if (num_at_end == symbol_vec.size()) {
     // already written by write_srt_punct_at_begin
@@ -254,7 +254,7 @@ OCRWord::num_punct_at_end() const {
 
 bool
 OCRWord::bboxes_assign(
-    const std::vector<cv::Rect> &src,
+    const std::vector<cv::Rect>& src,
     const TextStats* stats,
     const bool test_only) {
 
@@ -338,7 +338,7 @@ OCRWord::bboxes_assign_repair_too_few_bboxes(
   bool ok = true;
   std::size_t cand_i = 0;
   for (std::size_t sym_i = 0; sym_i < symbol_vec.size(); ) {
-    OCRSymbol & symbol = symbol_vec[sym_i];
+    OCRSymbol& symbol = symbol_vec[sym_i];
 
     if (cand_i >= cands.size()) {
       if (debug || subtitle_number == debug_subtitle_number) {
@@ -348,7 +348,7 @@ OCRWord::bboxes_assign_repair_too_few_bboxes(
       break;
     }
 
-    const cv::Rect &cand = cands[cand_i];
+    const cv::Rect& cand = cands[cand_i];
 
     const std::optional<int> min_height_opt = stats.symbol_height_min(symbol.utf8_symbol());
     if (min_height_opt.has_value() &&
@@ -412,7 +412,7 @@ OCRWord::bboxes_assign_repair_too_few_bboxes(
       continue;
     }
 
-    OCRSymbol & symbol2 = symbol_vec[sym_i + 1];
+    OCRSymbol& symbol2 = symbol_vec[sym_i + 1];
 
     const std::optional<float> avg_width2_opt = stats.symbol_width_avg(symbol2.utf8_symbol());
     if (!avg_width2_opt.has_value()) {
@@ -602,8 +602,8 @@ OCRWord::bboxes_assign_repair_too_few_bboxes(
     // included in the statistics and some italic versions of symbols can be
     // narrower than their normal versions, for example "i", "l", "t".)
     for (std::size_t sym_i = 0; sym_i < symbol_vec.size(); sym_i++) {
-      OCRSymbol & symbol = symbol_vec[sym_i];
-      std::vector<std::size_t> &cv = sym_cands[sym_i];
+      OCRSymbol& symbol = symbol_vec[sym_i];
+      std::vector<std::size_t>& cv = sym_cands[sym_i];
       
       const std::optional<float> min_height_opt = stats.symbol_height_min(symbol.utf8_symbol());
       if (!min_height_opt.has_value()) {
@@ -643,8 +643,8 @@ OCRWord::bboxes_assign_repair_too_few_bboxes(
       for (std::size_t cand_i = 0; cand_i < cands.size(); cand_i++) {
 	const std::size_t sym1_i = cand_i;
 	const std::size_t sym2_i = cand_i + 1;
-	std::vector<std::size_t> &v1 = sym_cands[sym1_i];
-	std::vector<std::size_t> &v2 = sym_cands[sym2_i];
+	std::vector<std::size_t>& v1 = sym_cands[sym1_i];
+	std::vector<std::size_t>& v2 = sym_cands[sym2_i];
 	auto v1_it = std::find(v1.begin(), v1.end(), cand_i);
 	auto v2_it = std::find(v2.begin(), v2.end(), cand_i);
 	const bool found1 = v1_it != v1.end();
@@ -653,8 +653,8 @@ OCRWord::bboxes_assign_repair_too_few_bboxes(
 	  if (v1.size() == 1 || v2.size() == 1) {
 	    // Check if a split would result in acceptable widths
 	    // Don't actually split. Only eliminate possibilities.
-	    const OCRSymbol &symbol1 = symbol_vec[cand_i];
-	    const OCRSymbol &symbol2 = symbol_vec[cand_i + 1];
+	    const OCRSymbol& symbol1 = symbol_vec[cand_i];
+	    const OCRSymbol& symbol2 = symbol_vec[cand_i + 1];
 
 	    const std::optional<float> avg_width1_opt = stats.symbol_width_avg(symbol1.utf8_symbol());
 	    const std::optional<float> avg_width2_opt = stats.symbol_width_avg(symbol2.utf8_symbol());
@@ -713,7 +713,7 @@ OCRWord::bboxes_assign_repair_too_few_bboxes(
     if (ok) {
       for (std::size_t sym_i = 0; sym_i < sym_cands.size(); sym_i++) {
 	const std::size_t sym1_i = sym_i;
-	OCRSymbol &symbol1 = symbol_vec[sym1_i];
+	OCRSymbol& symbol1 = symbol_vec[sym1_i];
 
 	const std::size_t sym2_i = sym_i + 1;
 	if ((sym2_i < sym_cands.size()) &&
@@ -721,7 +721,7 @@ OCRWord::bboxes_assign_repair_too_few_bboxes(
 	    (sym_cands[sym2_i].size() == 1) &&
 	    (sym_cands[sym1_i][0] == sym_cands[sym2_i][0])) {
 	  // split the bbox
-	  OCRSymbol &symbol2 = symbol_vec[sym2_i];
+	  OCRSymbol& symbol2 = symbol_vec[sym2_i];
 
 	  const std::optional<float> avg_width1_opt = stats.symbol_width_avg(symbol1.utf8_symbol());
 	  const std::optional<float> avg_width2_opt = stats.symbol_width_avg(symbol2.utf8_symbol());
@@ -801,7 +801,7 @@ OCRWord::bboxes_assign_repair_too_few_bboxes(
 }
 
 void
-OCRWord::dump(std::ostream & os) const {
+OCRWord::dump(std::ostream& os) const {
   os << "  word: ";
   write(os);
   os << ": ic: " << priv_italic_confidence <<
