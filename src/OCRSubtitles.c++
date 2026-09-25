@@ -21,7 +21,6 @@
 
 #include "generic_exception.h++"
 #include "debug.h++"
-#include "Replacements.h++"
 
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -124,7 +123,7 @@ OCRSubtitles::SubtitleInfo::SubtitleInfo(
 }
 
 OCRSubtitles::OCRSubtitles(
-    const std::string &subname)
+    const std::string& subname)
     : subname(subname),
       subtitle_info_vec(),
       subtitle_vec() {
@@ -211,7 +210,7 @@ OCRSubtitles::do_ocr(
 	std::cerr << "Batch OCR: subtitle " << (si_i + 1) << ", # lines: " <<
 	  subtitle_info_vec[si_i].bw_line_bbox_vec.size() << std::endl;
       }
-      for (const auto & lb_it : subtitle_info_vec[si_i].bw_line_bbox_vec) {
+      for (const auto& lb_it : subtitle_info_vec[si_i].bw_line_bbox_vec) {
 	line_count++;
 	line_max_width = std::max(line_max_width, lb_it.width);
 	line_max_height = std::max(line_max_height, lb_it.height);
@@ -244,7 +243,7 @@ OCRSubtitles::do_ocr(
     {
       std::size_t line_i = 0;
       for (std::size_t si_i = batch_i; si_i < batch_end_i; si_i++) {
-	for (const auto & lb_it : subtitle_info_vec[si_i].bw_line_bbox_vec) {
+	for (const auto& lb_it : subtitle_info_vec[si_i].bw_line_bbox_vec) {
 	  cv::Rect target_bbox(
 	      NUM_BORDER_PIXELS,
 	      NUM_BORDER_PIXELS + line_i * (line_max_height + NUM_BORDER_PIXELS),
@@ -281,11 +280,7 @@ OCRSubtitles::do_ocr(
 
 void
 OCRSubtitles::correct_ocr(
-    const std::string& replacements_file_name) {
-
-  Replacements repl(replacements_file_name);
-  repl.read();
-
+    const Replacements& replacements) {
   std::stringstream ss;
   {
     // reserve space
@@ -297,8 +292,7 @@ OCRSubtitles::correct_ocr(
   write(ss);
 
   std::istringstream iss;
-  iss.str(repl.replace(ss.str()));
-
+  iss.str(replacements.replace(ss.str()));
   read(iss);
 }
 
@@ -366,7 +360,7 @@ OCRSubtitles::detect_italic() {
   bboxes_assign(&text_stats);
 
   // Phase 5
-  for (auto &it : subtitle_vec) {
+  for (auto& it : subtitle_vec) {
     it.detect_italic(text_stats);
   }
 }
@@ -607,7 +601,7 @@ OCRSubtitles::write(
 void
 OCRSubtitles::read(
     std::istream& is) {
-  for (auto & it : subtitle_vec) {
+  for (auto& it : subtitle_vec) {
     it.read(is);
   }
 }

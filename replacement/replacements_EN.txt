@@ -30,19 +30,66 @@
 # To get a good result, after replacements have been applied, the number of
 # lines should still be the same, and no lines should have been inserted or
 # removed.
+
+# Adding new replacements can be tricky.
+# - Order of the replacements often matters. A replacement can modify the
+#   result of previous replacements.
+# - If you see an incorrect result from a vobsub2srt run with option
+#   --replacements:
+#   - Run vobsub2rt without options --replacements, --detect-italic, and 
+#     --base-duration first to get the unmodified OCR output.
+#   - Check if the incorrect result is present in the unmodified OCR output as
+#     well.
+#
+#
 ecmascript
 
-\bl\b
-I
+# Match: "-" at the begin of a line with something other than a space behind it.
+# Replace with: "- " followed by the something other than a space.
+^-([^ ])
+- \1
 
-\blL\b
-I
+\blam\b
+I'm
+
+# Match: "I'I", "I'l", "l'I", "l'l", "I'II", "I'Il", "I'lI", "I'll", "l'II",
+#        "l'Il", "l'lI", "l'll".
+# Replace with: "I'll".
+\b[Il]'[Il][Il]?\b
+I'll
 
 \blll\b
 I'll
 
-^-([^ ])
-- \1
+# Match: " [", followed by an ASCII alphabetical character.
+# Replace with: " I"
+# Note: can't use \b in front of "[", "[" does not start a word, so use multiple
+# match patterns.
+[ ]\[([A-Za-z])
+ I \1
+
+# Match: "[", at the begin of a line, followed by an ASCII alphabetical character.
+# Replace with: "I", followed by the matched ASCII alphabetical character.
+# Note: can't use \b in front of "[", "[" does not start a word, so use multiple
+# match patterns.
+^\[([A-Za-z])
+I \1
+
+# Match: "l" as a word, at the end of a line
+# Replace with: "I"
+# Note: avoid accidentally matching the French "l'" as in "l'accident"
+\bl$
+I
+
+# Match: "l" as a word, followed by something other than "'".
+# Replace with: "I", followed by the matched somthing other than "'".
+# Note: avoid accidentally matching the French "l'" as in "l'accident"
+\bl\b([^'])
+I\1
+
+# Match: "lL" as a word
+\blL\b
+I
 
 \‘
 '

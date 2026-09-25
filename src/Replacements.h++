@@ -31,12 +31,17 @@ public:
 	const std::regex_constants::syntax_option_type syntax_options,
 	const std::regex_constants::match_flag_type match_flags,
 	const std::string& match_pattern,
-	const std::string& replacement_pattern)
-	: syntax_options(syntax_options),
-	  match_flags(match_flags),
-	  match_pattern(match_pattern),
-	  replacement_pattern(replacement_pattern) {
-    }
+	const std::string& replacement_pattern);
+
+  const std::string&
+  match_pattern() const {
+    return priv_match_pattern;
+  }
+
+  const std::string&
+  replacement_pattern() const {
+    return priv_replacement_pattern;
+  }
 
   void
   replace(
@@ -45,14 +50,14 @@ public:
 
   private:
     // See: https://en.cppreference.com/cpp/regex/syntax_option_type
-    std::regex_constants::syntax_option_type syntax_options;
+    std::regex_constants::syntax_option_type priv_syntax_options;
 
     // See: https://en.cppreference.com/cpp/regex/match_flag_type
-    std::regex_constants::match_flag_type match_flags;
+    std::regex_constants::match_flag_type priv_match_flags;
 
-    std::string match_pattern;
+    std::string priv_match_pattern;
 
-    std::string replacement_pattern;
+    std::string priv_replacement_pattern;
   };
 
   Replacements(

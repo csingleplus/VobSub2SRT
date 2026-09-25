@@ -110,6 +110,15 @@ main2(int argc, char **argv) {
     verbose = verb; // mplayer verbose level
   }
   
+  // Read the replacements file first, to immediately report syntax errors in
+  // the file, instead of after OCR has finished.
+  Replacements replacements(replacements_file_name);
+  if (!replacements_file_name.empty()) {
+    replacements.read();
+  }
+
+  OCRSubtitles subtitles(subname);
+
   // Set Y threshold
   if (y_threshold != 16) {
     std::cout << "Using Y palette threshold: " << y_threshold << "\n";
@@ -217,8 +226,6 @@ main2(int argc, char **argv) {
   unsigned last_end_pts = 0;
   unsigned sub_counter = 1;
 
-  OCRSubtitles subtitles(subname);
-  
   while ((len = vobsub_get_next_packet(vobsub.vob(), &packet, &timestamp)) > 0) {
     if (timestamp >= 0) {
       spudec_assemble(vobsub.spu(), reinterpret_cast<unsigned char*>(packet), len, timestamp);
@@ -288,7 +295,7 @@ main2(int argc, char **argv) {
   subtitles.do_ocr(tess_base_api, ocr_batch_size);
 
   if (!replacements_file_name.empty()) {
-    subtitles.correct_ocr(replacements_file_name);
+    subtitles.correct_ocr(replacements);
   }
 
   if (detect_italic) {

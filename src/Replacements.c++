@@ -20,23 +20,36 @@
 #include "Replacements.h++"
 
 #include "generic_exception.h++"
+#include "debug.h++"
 
 #include <cstring>
 #include <fstream>
+#include <iostream>
 #include <sstream>
+
+Replacements::Replacement::Replacement(
+    const std::regex_constants::syntax_option_type syntax_options,
+    const std::regex_constants::match_flag_type match_flags,
+    const std::string& match_pattern,
+    const std::string& replacement_pattern)
+    : priv_syntax_options(syntax_options),
+      priv_match_flags(match_flags),
+      priv_match_pattern(match_pattern),
+      priv_replacement_pattern(replacement_pattern) {
+}
 
 void
 Replacements::Replacement::replace(
     const std::string& src,
     std::string& dst) const {
 
-  const std::regex regex(match_pattern, syntax_options);
+  const std::regex regex(priv_match_pattern, priv_syntax_options);
 
-  dst = std::move(std::regex_replace(
+  dst = std::regex_replace(
       src,
       regex,
-      replacement_pattern,
-      match_flags));
+      priv_replacement_pattern,
+      priv_match_flags);
 }
 
 static bool
@@ -72,8 +85,11 @@ Replacements::read()
   }
 
   int line_number = 1;
-  std::string header;
+  auto cerr_log = [&]() -> std::ostream& {
+    return std::cerr << "'" << file_name << "': line " << line_number << ": ";
+  };
 
+  std::string header;
   if (!read_line(ifs, header, line_number, true)) {
     return;
   }
@@ -98,6 +114,11 @@ Replacements::read()
       std::stringstream ss;
       ss << "'" << file_name << "': line " << line_number << ": missing replacement pattern.";
       throw generic_exception(ss.str());
+    }
+
+    if (debug) {
+      cerr_log() << "adding match pattern: ***" << match_pattern << "***" <<
+        ", replacement pattern: ***" << replacement_pattern << "***" << std::endl;
     }
 
     // add

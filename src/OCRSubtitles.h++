@@ -18,6 +18,7 @@
  */
 
 #include "OCRSubtitle.h++"
+#include "Replacements.h++"
 
 #include <tesseract/baseapi.h>
 
@@ -71,7 +72,7 @@ public:
 
   void
   correct_ocr(
-      const std::string& replacements_file_name);
+      const Replacements& replacements);
 
   void
   detect_italic();
