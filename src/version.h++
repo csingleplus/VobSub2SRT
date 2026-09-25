@@ -21,6 +21,6 @@
 #ifndef _VERSION_H_
 #define _VERSION_H_
 
-const std::string version = "1.1.3";
+const std::string version = "1.1.4";
 
 #endif

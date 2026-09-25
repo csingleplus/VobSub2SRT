@@ -41,6 +41,7 @@
 #include <stdexcept>
 #include <cstdint>
 #include <climits>
+#include <chrono>
 #include <array>
 #include <iostream>
 #include <fstream>
@@ -72,33 +73,33 @@ struct ImageInverter {
 
 // helper struct for caching and fixing end_pts in some cases
 struct sub_text_t {
-  uint32_t start_pts;
-  uint32_t end_pts;
+  uint64_t start_pts;
+  uint64_t end_pts;
   std::unique_ptr<char[]> text;
   
-  sub_text_t(uint32_t start_pts, uint32_t end_pts, std::unique_ptr<char[]> text);
+  sub_text_t(uint64_t start_pts, uint64_t end_pts, std::unique_ptr<char[]> text);
 };
 
-sub_text_t::sub_text_t(uint32_t start_pts, uint32_t end_pts, std::unique_ptr<char[]> text)
+sub_text_t::sub_text_t(uint64_t start_pts, uint64_t end_pts, std::unique_ptr<char[]> text)
   : start_pts(start_pts), end_pts(end_pts), text(std::move(text)) {}
 
 
 /** Converts time stamp in pts format to a string containing the time stamp for the srt format
  *
  * pts (presentation time stamp) is given with a 90kHz resolution (1/90 ms).
- * srt expects a time stamp as  HH:MM:SS,CTS.
+ * srt expects a time stamp as  HH:MM:SS,MS.
  */
-std::string pts2srt(unsigned pts) {
-  uint32_t ms = pts/90u;
+std::string pts2srt(uint64_t pts) {
+  uint64_t ms = pts/90lu;
   uint32_t const h = ms / (3600u * 1000u);
   ms -= h * 3600u * 1000u;
-  uint32_t const m = ms / (60u * 1000u);
+  uint32_t const m = ms / (60lu * 1000lu);
   ms -= m * 60u * 1000u;
   uint32_t const s = ms / 1000u;
   ms %= 1000u;
   
   std::array<char, 32> buf{};
-  std::snprintf(buf.data(), buf.size(), "%02u:%02u:%02u,%03u", h, m, s, ms);
+  std::snprintf(buf.data(), buf.size(), "%02u:%02u:%02u,%03lu", h, m, s, ms);
   return buf.data();
 }
 
@@ -176,7 +177,8 @@ int main(int argc, char **argv) {
   int y_threshold = 16;
   int min_width = 8;
   int min_height = 1;
-  
+
+  auto time_s = std::chrono::steady_clock::now(); // Start runtime counter
   {
     cmd_options opts;
     opts.
@@ -319,14 +321,6 @@ int main(int argc, char **argv) {
   }
   
   // Read subtitles and convert
-  /*
-  if (subname.empty()) {
-      vobsub_close(vob);
-      spudec_free(spu);
-      tess_base_api.End();
-      std::cerr << "Unable to open subtitles. Exiting.\n";
-      return 1;
-  }*/
   void *packet;
   int timestamp; // pts100
   int len;
@@ -337,8 +331,6 @@ int main(int argc, char **argv) {
   
   while ((len = vobsub_get_next_packet(vob, &packet, &timestamp)) > 0) {
     if (timestamp >= 0) {
-      //      unsigned char const *scaled_image = nullptr;
-      //      size_t scaled_image_size;
 
       spudec_assemble(spu, reinterpret_cast<unsigned char*>(packet), len, timestamp);
       spudec_heartbeat(spu, timestamp);
@@ -356,16 +348,16 @@ int main(int argc, char **argv) {
 
       last_start_pts = start_pts;
 
-	      if(verbose > 0 and static_cast<unsigned>(timestamp) != start_pts) {
+	      if(verbose > 0 and static_cast<uint64_t>(timestamp) != start_pts) {
 		std::cerr << sub_counter << ": time stamp from .idx (" << timestamp
 			  << ") doesn't match time stamp from .sub ("
 			  << start_pts << ")\n";
 	      }
 
-      // While tesseract version 3.05 (and older) handle inverted image (dark                                            
-      // background and light text) without problem for 4.x version use dark                                             
-      // text on light background.                                                                                       
-      // https://tesseract-ocr.github.io/tessdoc/ImproveQuality#image-processing                                          
+      // While tesseract version 3.05 (and older) handle inverted image (dark
+      // background and light text) without problem for 4.x version use dark
+      // text on light background.
+      // https://tesseract-ocr.github.io/tessdoc/ImproveQuality#image-processing
       
       ImageInverter inverter(image, image_size);
       image = inverter.inverted_image;
@@ -380,9 +372,9 @@ int main(int argc, char **argv) {
     
       tess_base_api.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
 
-      // Adjust dimensions for Tesseract based on scaling mode
-      int tesseract_width = static_cast<int>(width);
-      int tesseract_height = static_cast<int>(height);
+      // Adjust dimensions for Tesseract based on scaling mode (okay, I forgot what I was doing here
+      int tesseract_width = static_cast<int>(width);         /* but I don't wanna touch this right now */
+      int tesseract_height = static_cast<int>(height);       /*   ...it's been a month or two...)     */
       int tesseract_stride = static_cast<int>(stride);
       tess_base_api.SetImage(image, tesseract_width, tesseract_height, 1, tesseract_stride);
       char *tesseract_text = tess_base_api.GetUTF8Text();
@@ -419,11 +411,15 @@ for(unsigned i = 0; i < conv_subs.size(); ++i) {
  }
 
     // Close up shop
-tess_base_api.End();
-std::fclose(srtout);
-std::cout << "Wrote Subtitles to '" << subname << ".srt'\n";
-vobsub_close(vob);
-spudec_free(spu);
-mp_msg_uninit();
-return 0;
+ tess_base_api.End();
+ std::fclose(srtout);
+ std::cout << "Wrote Subtitles to '" << subname << ".srt'\n";
+ vobsub_close(vob);
+ spudec_free(spu);
+ mp_msg_uninit();
+ auto time_f = std::chrono::steady_clock::now();
+ std::chrono::duration<double> elapsed_d = time_f - time_s;
+ double elapsed = static_cast<double>(elapsed_d.count());
+ std::cout << elapsed << " seconds elapsed.";
+ return 0;
 }
