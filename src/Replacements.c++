@@ -43,14 +43,16 @@ static bool
 read_line(
     std::ifstream& ifs,
     std::string& line,
-    int& line_number) {
+    int& line_number,
+    bool skip_empty_line) {
   do {
     if (!std::getline(ifs, line)) {
       return false;
     }
     line_number++;
 
-  } while (line.size() && line[0] == '#');
+  } while ((line.size() && line[0] == '#') ||
+      (skip_empty_line && std::strspn(line.c_str(), " \t") == line.size()));
 
   return true;
 }
@@ -70,21 +72,29 @@ Replacements::read()
   }
 
   int line_number = 1;
+  std::string header;
+
+  if (!read_line(ifs, header, line_number, true)) {
+    return;
+  }
+  if (header != "ecmascript") {
+    std::stringstream ss;
+    ss << "'" << file_name << "': line " << line_number << ": file should have a line 'ecmascript' before replacment patterns.";
+    throw generic_exception(ss.str());
+  }
+
   while (true) {
     std::string tmp;
     std::string match_pattern;
     std::string replacement_pattern;
 
     // empty line(s) or match pattern
-    do {
-      if (!read_line(ifs, tmp, line_number)) {
-	return;
-      }
-    } while (std::strspn(tmp.c_str(), " \t") == tmp.size());
-    match_pattern = tmp;
+    if (!read_line(ifs, match_pattern, line_number, true)) {
+      return;
+    }
 
     // replacement pattern
-    if (!read_line(ifs, replacement_pattern, line_number)) {
+    if (!read_line(ifs, replacement_pattern, line_number, false)) {
       std::stringstream ss;
       ss << "'" << file_name << "': line " << line_number << ": missing replacement pattern.";
       throw generic_exception(ss.str());
@@ -100,7 +110,7 @@ Replacements::read()
 	replacement_pattern);
 
     // empty line or end of file
-    if (!read_line(ifs, tmp, line_number)) {
+    if (!read_line(ifs, tmp, line_number, false)) {
       break;
     }
     if (std::strspn(tmp.c_str(), " \t") != tmp.size()) {

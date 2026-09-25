@@ -30,6 +30,7 @@
 # To get a good result, after replacements have been applied, the number of
 # lines should still be the same, and no lines should have been inserted or
 # removed.
+ecmascript
 
 \bl\b
 I
@@ -49,6 +50,9 @@ I'll
 \’
 '
 
-[“”]
+“
+"
+
+”
 "
 
