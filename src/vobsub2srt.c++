@@ -299,8 +299,8 @@ int main(int argc, char **argv) {
     std::cout << "Using Tesseract data directory: " << tesseract_user_dir << ".\n";
   }
 
-  // Run Tesseract multithreaded
-  std::string tess_parallel = "1";
+  // This really seems to have little to no effect. Removal soon.
+  std::string tess_parallel = "0";
   tess_base_api.SetVariable("tessedit_parallelize", tess_parallel.c_str());
 
   // Set DPI to 72, or user-specified with --dpi
@@ -382,7 +382,7 @@ int main(int argc, char **argv) {
       std::unique_ptr<char[]> text;
       if (!tesseract_text) {
 	text.reset(new char[60]);
-	std::strcpy(text.get(), "VobSub2SRT ERROR: OCR failure! Unable to decode subtitle!");
+	std::strcpy(text.get(), "OCR failure! Unable to decode subtitle! Likely an empty subtitle, skipping.\n");
 	delete[] tesseract_text;
       } else {
 	size_t len = std::strlen(tesseract_text);
@@ -418,8 +418,7 @@ for(unsigned i = 0; i < conv_subs.size(); ++i) {
  spudec_free(spu);
  mp_msg_uninit();
  auto time_f = std::chrono::steady_clock::now();
- std::chrono::duration<double> elapsed_d = time_f - time_s;
- double elapsed = static_cast<double>(elapsed_d.count());
- std::cout << elapsed << " seconds elapsed.";
+ std::chrono::duration<double> elapsed = time_f - time_s;
+ std::cout << "Wrote Subtitles to '" << subname << ".srt', " << elapsed << " seconds elapsed.";
  return 0;
 }
