@@ -413,7 +413,6 @@ for(unsigned i = 0; i < conv_subs.size(); ++i) {
     // Close up shop
  tess_base_api.End();
  std::fclose(srtout);
- std::cout << "Wrote Subtitles to '" << subname << ".srt'\n";
  vobsub_close(vob);
  spudec_free(spu);
  mp_msg_uninit();
