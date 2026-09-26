@@ -381,7 +381,7 @@ int main(int argc, char **argv) {
       
       std::unique_ptr<char[]> text;
       if (!tesseract_text) {
-	text.reset(new char[60]);
+	text.reset(new char[80]);
 	std::strcpy(text.get(), "OCR failure! Unable to decode subtitle! Likely an empty subtitle, skipping.\n");
 	delete[] tesseract_text;
       } else {
@@ -419,6 +419,6 @@ for(unsigned i = 0; i < conv_subs.size(); ++i) {
  mp_msg_uninit();
  auto time_f = std::chrono::steady_clock::now();
  std::chrono::duration<double> elapsed = time_f - time_s;
- std::cout << "Wrote Subtitles to '" << subname << ".srt', " << elapsed << " seconds elapsed.";
+ std::cout << "Wrote Subtitles to '" << subname << ".srt', " << elapsed.count() << " seconds elapsed.";
  return 0;
 }
