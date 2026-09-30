@@ -27,15 +27,15 @@
 #include <tesseract/baseapi.h>
 
 // libpng
-#ifdef __has_include /** some systems do not use a subdir for png */
+//#ifdef __has_include /** some systems do not use a subdir for png */
 	#if __has_include(<png.h>)
 	#include <png.h>
 	#elif __has_include(<libpng/png.h>)
 	#include <libpng/png.h>
 	#endif
-#endif
+//#endif
 
-// Builtins/standard libs
+// standard libs
 #include <memory>
 #include <cstdlib>
 #include <stdexcept>
@@ -165,13 +165,15 @@ int main(int argc, char **argv) {
   bool dump_pgmfiles = false;
   bool dump_pngfiles = false;
   int verb = -1;
+  bool env = false;
   bool list_languages = false;
+  bool nofilter = false;
   std::string ifo_file;
   std::string subname;
   std::string lang;
   std::string tess_lang_user;
   std::string blacklist;
-  std::string tesseract_user_dir;
+  std::string tess_user_dir;
   std::string tess_user_dpi = "72";
   int index = -1;
   int y_threshold = 16;
@@ -182,6 +184,8 @@ int main(int argc, char **argv) {
   {
     cmd_options opts;
     opts.
+      add_option("env", env, "Show environment variables used and exit Returns null if unset.").
+      add_option("nofilter", nofilter, "Disable default Tesseract character blacklist (\"|\\/\")").
       add_option("show", show, "Show subtitles being written.").
       add_option("dump-pgm", dump_pgmfiles, "Save subtitles as sequential NetPBM image files (<subname>-<number>.pgm).").
       add_option("dump-png", dump_pngfiles, "Above, but in PNG format.").
@@ -191,7 +195,7 @@ int main(int argc, char **argv) {
       add_option("langlist", list_languages, "List languages and exit").
       add_option("index", index, "Subtitle index", 'i').
       add_option("tesseract-lang", tess_lang_user, "Desired Tesseract language (e.g. eng, deu, fra, esp)\n\t\t\t\t(Default: autodetect)").
-      add_option("tesseract-data", tesseract_user_dir, "Path to Tesseract data (e.g. you have tessdata_best and wish to\n\t\t\t\tuse it. Default: autodetect)").
+      add_option("tesseract-data", tess_user_dir, "Path to Tesseract data (e.g. you have tessdata_best and wish to\n\t\t\t\tuse it. Default: autodetect) (overrides $TESSDATA_PREFIX environment variable.").
       add_option("dpi", tess_user_dpi, "Set DPI for Tesseract OCR. Default: 72.").
       add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\")").
       add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (Default: 16)").
@@ -203,6 +207,16 @@ int main(int argc, char **argv) {
     if(!opts.parse_cmd(argc, argv)) {
       return 0;
     }
+  }
+
+// Announce tesseract language data dir for verbosity. This needs a bit of work.
+  if (env) {
+    if (tess_user_dir.empty()) {
+      std::cout << std::getenv("TESSDATA_PREFIX") << '\n';
+    } else if (!tess_user_dir.empty()) {
+      std::cout << "--tesseract-data set to: " << tess_user_dir << '\n';
+    }
+    return 0;
   }
 
   if(verb>0) {
@@ -235,7 +249,6 @@ int main(int argc, char **argv) {
       char const *const id = vobsub_get_id(vob, i);
       std::cout << i << ": " << (id ? id : "(no id. that's odd. may cause problems, please report if so.)") << '\n';
     }
-    vobsub_close(vob);
     spudec_free(spu);
     mp_msg_uninit();
     return 0;
@@ -286,22 +299,18 @@ int main(int argc, char **argv) {
   tesseract::TessBaseAPI tess_base_api;
   if(tess_base_api.Init(NULL, tess_lang, tesseract::OEM_LSTM_ONLY) == -1) {
     std::cerr << "Failed to initialize Tesseract (OCR).\n";
+    vobsub_close(vob);
+    spudec_free(spu);
+    mp_msg_uninit();
     return 1;
   }
   
   // Set blacklist if not empty
   if(!blacklist.empty()) {
     tess_base_api.SetVariable("tessedit_char_blacklist", blacklist.c_str());
+  } else if (!nofilter){
+    tess_base_api.SetVariable("tessedit_char_blacklist", "\\/|");
   }
-  
-  // Announce tesseract language data dir for verbosity. This needs a bit of work.
-  if(verb>=1) {
-    std::cout << "Using Tesseract data directory: " << tesseract_user_dir << ".\n";
-  }
-
-  // This really seems to have little to no effect. Removal soon.
-  std::string tess_parallel = "0";
-  tess_base_api.SetVariable("tessedit_parallelize", tess_parallel.c_str());
 
   // Set DPI to 72, or user-specified with --dpi
   tess_base_api.SetVariable("user_defined_dpi", tess_user_dpi.c_str());
@@ -369,14 +378,9 @@ int main(int argc, char **argv) {
       if (dump_pngfiles) {
 	dump_png(subname, sub_counter, width, height, stride, image);
       }
-    
+      /** Do OCR */
       tess_base_api.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
-
-      // Adjust dimensions for Tesseract based on scaling mode (okay, I forgot what I was doing here
-      int tesseract_width = static_cast<int>(width);         /* but I don't wanna touch this right now */
-      int tesseract_height = static_cast<int>(height);       /*   ...it's been a month or two...)     */
-      int tesseract_stride = static_cast<int>(stride);
-      tess_base_api.SetImage(image, tesseract_width, tesseract_height, 1, tesseract_stride);
+      tess_base_api.SetImage(image, width, height, 1, stride);
       char *tesseract_text = tess_base_api.GetUTF8Text();
       
       std::unique_ptr<char[]> text;

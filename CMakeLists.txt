@@ -63,7 +63,6 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g3 -DDEBUG -fsanitize=address,undefined")
 set(CMAKE_C_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
 
 find_package(Leptonica REQUIRED)
-find_package(Threads)
 find_package(Tesseract REQUIRED)
 find_package(PNG REQUIRED)
 
@@ -134,7 +133,7 @@ else()
 
   set(CPACK_DEBIAN_PACKAGE_SECTION "video")
   set(CPACK_DEBIAN_PACKAGE_DEPENDS libtesseract-dev)
-  set(CPACK_DEBIAN_PACKAGE_BUILD_DEPENDS libavutil-dev libtiff5-dev libtesseract-dev tesseract-ocr-eng cmake pkg-config)
+  set(CPACK_DEBIAN_PACKAGE_BUILD_DEPENDS libavutil-dev libtiff5-dev libpng-dev libtesseract-dev tesseract-ocr-eng cmake pkg-config)
 #  set(CPACK_DEBIAN_GIT_DCH TRUE)
   set(CPACK_DEBIAN_UPDATE_CHANGELOG TRUE)
   set(PPA_DEBIAN_VERSION "ppa1")
@@ -146,7 +145,7 @@ else()
   include(CPack)
 
   if(ENABLE_PPA)
-    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "any") # can be built on any system
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "any") # can be built on any system (x86_64 and ARM64 tested [2026])
     include(UploadPPA)
   endif()
 endif()
