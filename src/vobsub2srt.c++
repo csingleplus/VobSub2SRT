@@ -27,13 +27,12 @@
 #include <tesseract/baseapi.h>
 
 // libpng
-//#ifdef __has_include /** some systems do not use a subdir for png */
+/** some systems do not use a subdir for png. uncomment ifdef for C++11 */
 	#if __has_include(<png.h>)
 	#include <png.h>
 	#elif __has_include(<libpng/png.h>)
 	#include <libpng/png.h>
 	#endif
-//#endif
 
 // standard libs
 #include <memory>
@@ -211,10 +210,20 @@ int main(int argc, char **argv) {
 
 // Announce tesseract language data dir for verbosity. This needs a bit of work.
   if (env) {
-    if (tess_user_dir.empty()) {
-      std::cout << std::getenv("TESSDATA_PREFIX") << '\n';
-    } else if (!tess_user_dir.empty()) {
+    
+    const char* tesspfx = std::getenv("TESSDATA_PREFIX");
+    bool has_env = (tesspfx && std::string(tesspfx) != "1");
+      
+    if (tess_user_dir.empty() && has_env) {
+      std::cout << "TESSDATA_PREFIX: " << tesspfx << '\n';
+    }
+    
+    if (!tess_user_dir.empty()) {
       std::cout << "--tesseract-data set to: " << tess_user_dir << '\n';
+    }
+    
+    if (tess_user_dir.empty() && !has_env) {
+      std::cout << "Environment unset. Using default Tesseract data directory.\n";
     }
     return 0;
   }
