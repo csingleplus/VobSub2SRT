@@ -27,7 +27,7 @@
 #include <tesseract/baseapi.h>
 
 // libpng
-/** some systems do not use a subdir for png. uncomment ifdef for C++11 */
+/** some systems do not use a subdir for png. */
 	#if __has_include(<png.h>)
 	#include <png.h>
 	#elif __has_include(<libpng/png.h>)
@@ -183,7 +183,7 @@ int main(int argc, char **argv) {
   {
     cmd_options opts;
     opts.
-      add_option("env", env, "Show environment variables used and exit Returns null if unset.").
+      add_option("env", env, "Show environment variables used and exit.").
       add_option("nofilter", nofilter, "Disable default Tesseract character blacklist (\"|\\/\")").
       add_option("show", show, "Show subtitles being written.").
       add_option("dump-pgm", dump_pgmfiles, "Save subtitles as sequential NetPBM image files (<subname>-<number>.pgm).").
@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
       add_option("langlist", list_languages, "List languages and exit").
       add_option("index", index, "Subtitle index", 'i').
       add_option("tesseract-lang", tess_lang_user, "Desired Tesseract language (e.g. eng, deu, fra, esp)\n\t\t\t\t(Default: autodetect)").
-      add_option("tesseract-data", tess_user_dir, "Path to Tesseract data (e.g. you have tessdata_best and wish to\n\t\t\t\tuse it. Default: autodetect) (overrides $TESSDATA_PREFIX environment variable.").
+      add_option("tesseract-data", tess_user_dir, "Path to Tesseract data (e.g. you have tessdata_best and wish to\n\t\t\t\tuse it. Default: autodetect) (overrides $TESSDATA_PREFIX environment variable.)").
       add_option("dpi", tess_user_dpi, "Set DPI for Tesseract OCR. Default: 72.").
       add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\")").
       add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (Default: 16)").
@@ -208,9 +208,10 @@ int main(int argc, char **argv) {
     }
   }
 
-// Announce tesseract language data dir for verbosity. This needs a bit of work.
+// Display relevant environment variable status
   if (env) {
-    
+    const char* mpthreads = std::getenv("OMP_NUM_THREADS");
+    bool omp_thread_limit = (mpthreads && std::string(mpthreads) != "1");
     const char* tesspfx = std::getenv("TESSDATA_PREFIX");
     bool has_env = (tesspfx && std::string(tesspfx) != "1");
       
@@ -223,7 +224,11 @@ int main(int argc, char **argv) {
     }
     
     if (tess_user_dir.empty() && !has_env) {
-      std::cout << "Environment unset. Using default Tesseract data directory.\n";
+      std::cout << "TESSDATA_PREFIX unset. Using default Tesseract data directory.\n";
+    }
+
+    if (omp_thread_limit) {
+      std::cout << "OMP_NUM_THREADS: " << mpthreads << "\n";
     }
     return 0;
   }
