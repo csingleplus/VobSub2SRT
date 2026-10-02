@@ -246,15 +246,14 @@ int main(int argc, char **argv) {
   // Open the sub/idx subtitles
   spu_t spu;
   vob_t vob = vobsub_open(subname.c_str(), ifo_file.empty() ? 0x0 : ifo_file.c_str(), 1, y_threshold, &spu);
-  if (!vob || vobsub_get_indexes_count(vob) == 0) {
-    std::cerr << "Couldn't open VobSub files '" << subname << ".idx/.sub'\n";
-    if (subname.empty() || vob) {
-      vobsub_close(vob);
+  if (!vob || vobsub_get_indexes_count(vob) == 0 || subname.empty()) {
+    std::cerr << "Couldn't open sub/idx VobSub files for'" << subname << "'\n";
+    vobsub_close(vob);
     spudec_free(spu);
     mp_msg_uninit();
     return 1;
-    }
   }
+
 
   // list languages and exit
   if(list_languages) {
