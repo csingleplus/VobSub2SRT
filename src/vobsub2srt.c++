@@ -28,11 +28,13 @@
 
 // libpng
 /** some systems do not use a subdir for png. */
-	#if __has_include(<png.h>)
-	#include <png.h>
-	#elif __has_include(<libpng/png.h>)
-	#include <libpng/png.h>
-	#endif
+#if __has_include(<png.h>)
+#include <png.h>
+#elif __has_include(<libpng/png.h>)
+#include <libpng/png.h>
+#else
+#error "PNG not found"
+#endif
 
 // standard libs
 #include <memory>
@@ -262,6 +264,7 @@ int main(int argc, char **argv) {
       char const *const id = vobsub_get_id(vob, i);
       std::cout << i << ": " << (id ? id : "(no id. that's odd. may cause problems, please report if so.)") << '\n';
     }
+    vobsub_close(vob);
     spudec_free(spu);
     mp_msg_uninit();
     return 0;
