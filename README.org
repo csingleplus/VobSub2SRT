@@ -12,6 +12,12 @@ does not use any preprocessing.  But I'm currently looking into adding filters
 to improve the OCR. You can correct mistakes in the =.srt= files with a text
 editor or a subtitle editor.
 
+** October 2026
+-		New release soon. Overhauled using FFmpeg instead of MPlayer static libs. 
+		There is still code by @ruediger shared by it, so I don't believe a new repo
+		is where it should go. Perhaps one for the tool	I wrote as I was learning FFmpeg's API
+		could be useful to someone, though.
+
 ** July 2026
 -		I have been working on a completely new codebase for better support across systems
 		and multiple formats. This may take some time, as I am learning FFmpeg's API.
@@ -135,8 +141,7 @@ Please submit bug reports or feature requests to the
 [[https://github.com/csingleplus/VobSub2SRT/issues][issue tracker on GitHub]].
 
 If you have problems with a specific subtitle file then please check if
-it works in mplayer first. Also, you may need to replace the palette line
-in your .idx file to this, a plain white-on-black palette for better accuracy.
+it works in a media player first.
 
 #+BEGIN_SRC
 	palette: 000000,ffffff,000000,000000,000000,ffffff,000000,000000,000000,ffffff,000000,000000,000000,ffffff,000000,000000
