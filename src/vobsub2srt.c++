@@ -3,7 +3,7 @@
  *  into .srt text subtitles by using OCR (tesseract). See README.
  *
  *  Copyright (C) 2010-2016 Rüdiger Sonderfeld <ruediger@c-plusplus.de>
- *  Copyright (C) 2026 Christopher Ogloff <chris.ogloff@gmail.com>
+ *  Copyright (C) 2026 Christopher Ogloff <chris.ogloff@gmail.com> (libav implementation)
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,9 +19,11 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mp_msg.h" // MPlayer message framework
-#include "vobsub.h" // VobSub reader
-#include "spudec.h" // SPU decoder
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/dict.h>
+}
 
 // Tesseract OCR
 #include <tesseract/baseapi.h>
@@ -32,14 +34,12 @@
 #include <png.h>
 #elif __has_include(<libpng/png.h>)
 #include <libpng/png.h>
-#else
-#error "PNG not found"
 #endif
 
 // standard libs
 #include <memory>
 #include <cstdlib>
-#include <stdexcept>
+#include <cstring>
 #include <cstdint>
 #include <climits>
 #include <chrono>
@@ -50,34 +50,21 @@
 #include <cstdio>
 #include <vector>
 
-// Language and option handling.
+// Language and option handling
 #include "langcodes.h++"
 #include "cmd_options.h++"
 #include "version.h++"
 
 
-typedef void* vob_t;
-typedef void* spu_t;
-
-/** Image inversion code by Ethan Dye [https://github.com/ecdye/VobSub2SRT] */
-
-struct ImageInverter {
-  ImageInverter(const unsigned char *image, size_t image_size)
-    : inverted_image(new unsigned char[image_size]) {
-    for (size_t i = 0; i < image_size; ++i)
-      inverted_image[i] = ((255 - image[i]) > 0x80) ? 0xff : 0;
-  }
-  ~ImageInverter() { delete[] inverted_image; }
-  
-  unsigned char *inverted_image;
-};
+// Version string for display
+const char* version = _VOBSUB2SRT_VERSION_;
 
 // helper struct for caching and fixing end_pts in some cases
 struct sub_text_t {
   uint64_t start_pts;
   uint64_t end_pts;
   std::unique_ptr<char[]> text;
-  
+
   sub_text_t(uint64_t start_pts, uint64_t end_pts, std::unique_ptr<char[]> text);
 };
 
@@ -91,30 +78,30 @@ sub_text_t::sub_text_t(uint64_t start_pts, uint64_t end_pts, std::unique_ptr<cha
  * srt expects a time stamp as  HH:MM:SS,MS.
  */
 std::string pts2srt(uint64_t pts) {
-  uint64_t ms = pts/90lu;
+  uint64_t ms = pts/90l;
   uint32_t const h = ms / (3600u * 1000u);
   ms -= h * 3600u * 1000u;
-  uint32_t const m = ms / (60lu * 1000lu);
+  uint32_t const m = ms / (60u * 1000u);
   ms -= m * 60u * 1000u;
   uint32_t const s = ms / 1000u;
   ms %= 1000u;
-  
+
   std::array<char, 32> buf{};
-  std::snprintf(buf.data(), buf.size(), "%02u:%02u:%02u,%03lu", h, m, s, ms);
+  std::snprintf(buf.data(), buf.size(), "%02d:%02d:%02d,%03ld", h, m, s, ms);
   return buf.data();
 }
 
 
 /** Converts image data to Netpbm PGM format */
-void dump_pgm(std::string const &filename, unsigned counter, unsigned width, unsigned height,
-              unsigned stride, unsigned char const *image, size_t image_size) {
-  
+void dump_pgm(const std::string &filename, unsigned counter, unsigned width, unsigned height,
+              unsigned stride, const unsigned char *image) {
+
   char buf[500];
   std::snprintf(buf, sizeof(buf), "%s-%04u.pgm", filename.c_str(), counter);
   std::ofstream pgm(buf, std::ios::binary);
   if(pgm) {
     pgm << "P5\n" << width << " " << height << " 255\n";
-    for(size_t i = 0; i < image_size; i += stride) {
+    for(size_t i = 0; i < stride * height; i += stride) {
       pgm.write(reinterpret_cast<const char*>(image + i), width);
     }
   }
@@ -122,88 +109,300 @@ void dump_pgm(std::string const &filename, unsigned counter, unsigned width, uns
 
 /** Or, to PNG */
 void dump_png(const std::string &filename, unsigned counter, unsigned width, unsigned height,
-	      unsigned stride, const unsigned char* image) {
+              unsigned stride, const unsigned char* image) {
+
   char buf[500];
   std::snprintf(buf, sizeof(buf), "%s-%04u.png", filename.c_str(), counter);
   FILE* pngfile = std::fopen(buf, "wb");
   if (!pngfile) {
-    mp_msg(MSGT_VOBSUB, MSGL_FATAL, "Unable to open PNG file for writing. Ensure you have write permissions.\n");
     return;
   }
-    png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
-    if (!png_ptr) {
-        std::cerr << "Unable to allocate memory for PNG file structure!\n";
-        return;
-    }
+  png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+  if (!png_ptr) {
+    std::cerr << "Unable to allocate memory for PNG file structure!\n";
+    return;
+  }
 
-    png_infop info_ptr = png_create_info_struct(png_ptr);
-    if (!info_ptr) {
-        png_destroy_write_struct(&png_ptr, nullptr);
-        return;
-    }
+  png_infop info_ptr = png_create_info_struct(png_ptr);
+  if (!info_ptr) {
+    png_destroy_write_struct(&png_ptr, nullptr);
+    return;
+  }
 
-    if (setjmp(png_jmpbuf(png_ptr))) {
-        png_destroy_write_struct(&png_ptr, &info_ptr);
-        return;
-    }
-    png_init_io(png_ptr, pngfile);
-    png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
-
-    png_write_info(png_ptr, info_ptr);
-
-    for (size_t row = 0; row < height; ++row) {
-        png_write_row(png_ptr, const_cast<png_bytep>(image + row * stride));
-    }
-
-    png_write_end(png_ptr, nullptr);
-
+  if (setjmp(png_jmpbuf(png_ptr))) {
     png_destroy_write_struct(&png_ptr, &info_ptr);
-    std::fclose(pngfile);
+    return;
+  }
+  png_init_io(png_ptr, pngfile);
+  png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+  png_write_info(png_ptr, info_ptr);
+
+  for (size_t row = 0; row < height; ++row) {
+    png_write_row(png_ptr, const_cast<png_bytep>(image + row * stride));
+  }
+
+  png_write_end(png_ptr, nullptr);
+
+  png_destroy_write_struct(&png_ptr, &info_ptr);
+  std::fclose(pngfile);
+}
+
+/**
+ * Open a media file and return the format context.
+ * Also finds the first subtitle stream index.
+ */
+AVFormatContext* media_open(const char* subname, const char* ifo_file,
+			    int& subtitle_stream_index) {
+  (void)ifo_file; // TODO: complete this
+  std::string sub_path = subname;
+  // Append ".idx" extension only if the filename has no extension TODO: check for other media extensions
+  size_t dot_pos = sub_path.find_last_of('.');
+  if (dot_pos == std::string::npos) { /* check if .idx exists and use it. better to use std::filesystem */
+    sub_path += ".idx";
+  }
+
+  AVFormatContext* fmt_ctx = avformat_alloc_context();
+  if (!fmt_ctx) {
+    return nullptr;
+  }
+
+  // Try to open the subtitles directly
+  int ret = avformat_open_input(&fmt_ctx, sub_path.c_str(), nullptr, nullptr);
+  if (ret < 0) {
+    std::cerr << "Error opening subtitle file: " << sub_path << "\n"
+	      << "Container or .idx file not found. Please specify an absolute path, e.g. /home/user/file.vob.\n";
+    avformat_free_context(fmt_ctx);
+    return nullptr;
+  }
+
+  // Find subtitle stream
+  for (unsigned i = 0; i < fmt_ctx->nb_streams; ++i) {
+    if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE) {
+      subtitle_stream_index = static_cast<int>(i);
+      break;
+    }
+  }
+
+  // Probe stream info to get codec details
+avformat_find_stream_info(fmt_ctx, nullptr);
+
+if (subtitle_stream_index < 0 || fmt_ctx->streams[subtitle_stream_index]->codecpar->codec_type != AVMEDIA_TYPE_SUBTITLE) {
+  std::cerr << "No subtitle stream found in file\n";
+  avformat_close_input(&fmt_ctx);
+  return nullptr;
+ }
+
+return fmt_ctx;
+}
+
+/**
+ * Close the media file.
+ */
+void media_close(AVFormatContext*& fmt_ctx) {
+  if (fmt_ctx) {
+    avformat_close_input(&fmt_ctx);
+  }
+}
+
+/**
+ * Get subtitle stream count
+ */
+unsigned int sub_get_indexes_count(AVFormatContext* fmt_ctx) {
+  if (!fmt_ctx) return 0;
+  // Count subtitle streams
+  unsigned count = 0;
+  for (unsigned i = 0; i < fmt_ctx->nb_streams; ++i) {
+    if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+/**
+ * Get subtitle ID/language for a given index.
+ * Returns empty string if not available.
+ */
+std::string sub_get_id(AVFormatContext* fmt_ctx, unsigned int index) {
+  if (!fmt_ctx || index >= fmt_ctx->nb_streams)
+    return "Invalid subtitle index.";
+
+  AVStream* stream = fmt_ctx->streams[index];
+  if (stream->metadata && av_dict_get(stream->metadata, "language", nullptr, 0)) {
+    return av_dict_get(stream->metadata, "language", nullptr, 0)->value;
+  }
+
+  return "No language identified. May cause unexpected behavior. Try setting --tesseract-lang";
+}
+
+/**
+ * Set subtitle stream from language code.
+ * Returns 0 on success, 1 if not found.
+ */
+int sub_set_from_lang(AVFormatContext* fmt_ctx, const char* lang) {
+  if (!fmt_ctx || !lang) return 1;
+
+  for (unsigned i = 0; i < fmt_ctx->nb_streams; ++i) {
+    if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE) {
+      AVDictionaryEntry* entry = av_dict_get(fmt_ctx->streams[i]->metadata, "language", nullptr, 0);
+      if (entry && strcmp(entry->value, lang) == 0) {
+        return static_cast<int>(i);
+      }
+    }
+  }
+  return 1;
+}
+
+/**
+ * Extract subtitle image data from AVSubtitle, optionally dump images, then run OCR.
+ *
+ * Convert to grayscale and invert so text is dark on light background
+ * (required for Tesseract OCR accuracy).
+ */
+enum class DumpFormat { NONE, PNG, PGM };
+int min_width = 8;
+int min_height = 8;
+
+std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess,
+				  int y_threshold,
+				  DumpFormat dump_format = DumpFormat::NONE,
+				  const std::string* filename_base = nullptr,
+				  unsigned* counter_ptr = nullptr) {
+  std::string result;
+
+  for (unsigned i = 0; i < subtitle->num_rects; ++i) {
+    AVSubtitleRect* rect = subtitle->rects[i];
+
+    // Skip if too small
+    if (rect->w < min_width || rect->h < min_height) continue;
+
+    /**
+     * Convert to grayscale image for OCR
+     *
+     */
+    auto image = std::make_unique<unsigned char[]>(rect->w * rect->h);
+    bool has_palette = (rect->data[1] != nullptr);
+    
+    // Pre-compute luminance for all palette entries
+    std::array<int, 256> palette_luma;
+    if (has_palette) {
+      const unsigned char* palette = rect->data[1];
+      for (int i = 0; i < 256; ++i) {
+        int r = palette[i * 4];     // R
+        int g = palette[i * 4 + 1]; // G
+	int b = palette[i * 4 + 2]; // B
+        // Compute luminance using BT.601 coefficients
+        palette_luma[i] = (r * 299 + g * 587 + b * 114) / 1000;
+      }
+    } else {
+      // Fallback: all zeros (black)
+      palette_luma.fill(0);
+    }
+
+    for (int y = 0; y < rect->h; ++y) {
+      for (int x = 0; x < rect->w; ++x) {
+        unsigned char pixvalue = 0;
+
+        if (has_palette) {
+          // 8-bit indexed color: each byte is a palette index
+          unsigned char idx = rect->data[0][y * rect->w + x];
+          // Look up luminance from pre-computed palette
+          pixvalue = palette_luma[idx];
+        } else {
+          // Fallback: treat as direct grayscale
+          pixvalue = rect->data[0][y * rect->w + x];
+        }
+
+        // Apply Y threshold for better OCR:
+        // We want dark text on light background for Tesseract.
+        // DVD subtitles typically have light text on dark background,
+        // so we invert: below threshold becomes light (background),
+        // above threshold becomes dark (text).
+        int threshold = y_threshold;
+        if (pixvalue < threshold) {
+          image[y * rect->w + x] = 255;
+        } else {
+          image[y * rect->w + x] = 0;
+        }
+      }
+    }
+
+    // Dump image if requested (PNG or PGM format)
+    if (dump_format != DumpFormat::NONE && filename_base && counter_ptr) {
+      unsigned width = rect->w;
+      unsigned height = rect->h;
+      unsigned stride = rect->w;
+      
+      switch (dump_format) {
+        case DumpFormat::PNG:
+          dump_png(*filename_base, *counter_ptr, width, height, stride, image.get());
+          break;
+        case DumpFormat::PGM:
+          dump_pgm(*filename_base, *counter_ptr, width, height, stride, image.get());
+          break;
+        default:
+          break;
+      }
+      (*counter_ptr)++;
+    }
+
+    // Run OCR using Tesseract
+    tess.SetImage(image.get(), rect->w, rect->h, 1, rect->w);
+    char* ocr_result = tess.GetUTF8Text();
+
+    if (ocr_result && strlen(ocr_result) > 0) {
+      result += ocr_result;
+    }
+    delete[] ocr_result;
+  }
+  return result;
+  tess.Clear();
 }
 
 int main(int argc, char **argv) {
   bool show = false;
   bool dump_pgmfiles = false;
   bool dump_pngfiles = false;
-  int verb = -1;
+  bool verbose = false;
   bool env = false;
   bool list_languages = false;
   bool nofilter = false;
   std::string ifo_file;
   std::string subname;
   std::string lang;
+  std::string outfile;
   std::string tess_lang_user;
   std::string blacklist;
   std::string tess_user_dir;
   std::string tess_user_dpi = "72";
   int index = -1;
   int y_threshold = 16;
-  int min_width = 8;
-  int min_height = 1;
 
   auto time_s = std::chrono::steady_clock::now(); // Start runtime counter
   {
     cmd_options opts;
     opts.
-      add_option("env", env, "Show environment variables used and exit.").
+      add_option("output", outfile, "Set output filename to use, otherwise set to <subname>.<lang>.srt", 'o').
+      add_option("env", env, "Show environment variables used and exit.", 'e').
       add_option("nofilter", nofilter, "Disable default Tesseract character blacklist (\"|\\/\")").
       add_option("show", show, "Show subtitles being written.").
-      add_option("dump-pgm", dump_pgmfiles, "Save subtitles as sequential NetPBM image files (<subname>-<number>.pgm).").
+      add_option("dump-pgm", dump_pgmfiles, "Save subtitles as sequential NetPBM image files (<subname>-0001.pgm etc.).").
       add_option("dump-png", dump_pngfiles, "Above, but in PNG format.").
-      add_option("verbose", verb, "Decoder verbosity, a value of 1 or 2.").
-      add_option("ifo", ifo_file, "Name of the IFO file. Default: tries to open <subname>.ifo(case insensitive).\n\t\t\t\tIFO file is optional but may fix empty palette issues!").
+      add_option("verbose", verbose, "Debug prints to stderr.").
+      add_option("ifo", ifo_file, "Unused at the moment, option kept for script compatibility.").
       add_option("lang", lang, "Language to select", 'l').
       add_option("langlist", list_languages, "List languages and exit").
       add_option("index", index, "Subtitle index", 'i').
-      add_option("tesseract-lang", tess_lang_user, "Desired Tesseract language (e.g. eng, deu, fra, esp)\n\t\t\t\t(Default: autodetect)").
-      add_option("tesseract-data", tess_user_dir, "Path to Tesseract data (e.g. you have tessdata_best and wish to\n\t\t\t\tuse it. Default: autodetect) (overrides $TESSDATA_PREFIX environment variable.)").
-      add_option("dpi", tess_user_dpi, "Set DPI for Tesseract OCR. Default: 72.").
-      add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\")").
-      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (Default: 16)").
-      add_option("min-width", min_width, "Minimum width in pixels to consider a subpicture for OCR (Default: 8)").
-      add_option("min-height", min_height, "Minimum height in pixels to consider a subpicture for OCR (Default: 1)");
-    
-    opts.add_unnamed(subname, "subname", "name of the subtitle files without .idx/.sub ending.");
+      add_option("tesseract-lang", tess_lang_user, "Desired Tesseract language (e.g. eng, deu, fra, etc.)").
+      add_option("tesseract-data", tess_user_dir, "Path to Tesseract data (e.g. you have tessdata_best traineddata files in a custom directory).").
+      add_option("dpi", tess_user_dpi, "Set DPI for Tesseract OCR. Default: 72").
+      add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\" to avoid common misreads).").
+      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (0-255). Default: 16").
+      add_option("min-width", min_width, "Minimum width in pixels to consider a subpicture for OCR. Default: 8").
+      add_option("min-height", min_height, "Minimum height in pixels to consider a subpicture for OCR. Default: 8");
+
+    opts.add_unnamed(subname, "subname", "VOB, MP4, MKV, or similar file, or name of the .idx from the subtitles. Make sure the .sub file is in the same directory as the .idx");
     std::cout << "VobSub2SRT version " << version << '\n';
     if(!opts.parse_cmd(argc, argv)) {
       return 0;
@@ -212,98 +411,88 @@ int main(int argc, char **argv) {
 
 // Display relevant environment variable status
   if (env) {
-    const char* mpthreads = std::getenv("OMP_NUM_THREADS");
-    bool omp_thread_limit = (mpthreads && std::string(mpthreads) != "1");
     const char* tesspfx = std::getenv("TESSDATA_PREFIX");
-    bool has_env = (tesspfx && std::string(tesspfx) != "1");
-      
-    if (tess_user_dir.empty() && has_env) {
+    bool tessdata_env = (tesspfx && std::string(tesspfx) != "1");
+
+    if (tess_user_dir.empty() && tessdata_env) {
       std::cout << "TESSDATA_PREFIX: " << tesspfx << '\n';
     }
-    
+
     if (!tess_user_dir.empty()) {
-      std::cout << "--tesseract-data set to: " << tess_user_dir << '\n';
+      std::cout << "--tesseract-data set to: " << tess_user_dir << '\n'; /*   wrote this entire section in a hurry, clean it up.  */
     }
-    
-    if (tess_user_dir.empty() && !has_env) {
+
+    if (tess_user_dir.empty() && !tessdata_env) {
       std::cout << "TESSDATA_PREFIX unset. Using default Tesseract data directory.\n";
     }
 
-    if (omp_thread_limit) {
-      std::cout << "OMP_NUM_THREADS: " << mpthreads << "\n";
-    }
     return 0;
   }
 
-  if(verb>0) {
-    verbose = verb; // mplayer verbose level
-  }
-  mp_msg_init();
-  
   // Set Y threshold
   if (y_threshold != 16) {
     std::cout << "Using Y palette threshold: " << y_threshold << "\n";
   }
-  
-  // Open the sub/idx subtitles
-  spu_t spu;
-  vob_t vob = vobsub_open(subname.c_str(), ifo_file.empty() ? 0x0 : ifo_file.c_str(), 1, y_threshold, &spu);
-  if (!vob || vobsub_get_indexes_count(vob) == 0 || subname.empty()) {
-    std::cerr << "Couldn't open sub/idx VobSub files for'" << subname << "'\n";
-    vobsub_close(vob);
-    spudec_free(spu);
-    mp_msg_uninit();
+
+  // Open the subtitles using FFmpeg. This assumes DVD subtitles (dvd_subtitle codec)
+  // TODO: test with IFO.
+  int subtitle_stream_index = -1;
+  AVFormatContext* avfctx = media_open(subname.c_str(), ifo_file.empty() ? nullptr : ifo_file.c_str(),
+                                      subtitle_stream_index);
+  if (!avfctx || subtitle_stream_index < 0) {
+    //    std::cerr << "Couldn't open container or sub/idx VobSub files for '" << subname << "'\n";
     return 1;
   }
 
-
-  // list languages and exit
+  // List languages and exit
   if(list_languages) {
     std::cout << "Languages:\n";
-    for(size_t i = 0; i < vobsub_get_indexes_count(vob); ++i) {
-      char const *const id = vobsub_get_id(vob, i);
-      std::cout << i << ": " << (id ? id : "(no id. that's odd. may cause problems, please report if so.)") << '\n';
+    for(size_t i = 0; i < avfctx->nb_streams; ++i) {
+      if (avfctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE) {
+        std::string id = sub_get_id(avfctx, static_cast<unsigned>(i));
+        std::cout << i << ": " << (id.empty() ? "(no id. that's odd. may cause problems, please report if you see this)\n" : id.c_str()) << '\n';
+      }
     }
-    vobsub_close(vob);
-    spudec_free(spu);
-    mp_msg_uninit();
+    media_close(avfctx);
     return 0;
   }
-  
-  // Handle stream Ids and language
+
+  // Handle stream IDs and language
   if(!lang.empty() && index >= 0) {
     std::cerr << "Setting both lang and index not supported.\n";
-    vobsub_close(vob);
-    spudec_free(spu);
-    mp_msg_uninit();
+    media_close(avfctx);
     return 1;
   }
 
   // Default OCR language to eng unless overridden by user or inferred from selected subtitle track.
   char const *tess_lang = tess_lang_user.empty() ? "eng" : tess_lang_user.c_str();
   if(!lang.empty()) {
-    if(vobsub_set_from_lang(vob, lang.c_str()) < 0) {
+    int stream_idx = sub_set_from_lang(avfctx, lang.c_str());
+    if (stream_idx < 0) {
       std::cerr << "No matching language for '" << lang << "' found! (Trying to use default)\n";
-    } else if(tess_lang_user.empty()) {
-      char const *const lang3 = iso639_1_to_639_3(lang.c_str());
-      if(lang3) {
-        tess_lang = lang3;
+    } else {
+      subtitle_stream_index = stream_idx;
+      if(tess_lang_user.empty()) {
+        char const *const lang3 = iso639_1_to_639_3(lang.c_str());
+        if(lang3) {
+          tess_lang = lang3;
+        }
       }
     }
   } else {
     if(index >= 0) {
-      if(static_cast<unsigned>(index) >= vobsub_get_indexes_count(vob)) {
+      if(static_cast<unsigned>(index) >= avfctx->nb_streams) {
         std::cerr << "Index argument out of range: " << index << " ("
-             << vobsub_get_indexes_count(vob) << ")\n";
+                  << avfctx->nb_streams << ")\n";
         return 1;
       }
-      vobsub_id = index;
+      subtitle_stream_index = index;
     }
-    
-    if(vobsub_id >= 0) {
-      char const *const lang1 = vobsub_get_id(vob, vobsub_id);
-      if(lang1 && tess_lang_user.empty()) {
-        char const *const lang3 = iso639_1_to_639_3(lang1);
+
+    if(subtitle_stream_index >= 0) {
+      std::string lang1 = sub_get_id(avfctx, static_cast<unsigned>(subtitle_stream_index));
+      if(!lang1.empty() && tess_lang_user.empty()) {
+        char const *const lang3 = iso639_1_to_639_3(lang1.c_str());
         if(lang3) {
           tess_lang = lang3;
         }
@@ -311,133 +500,226 @@ int main(int argc, char **argv) {
     }
   }
 
-  // Init Tesseract
-  tesseract::TessBaseAPI tess_base_api;
-  if(tess_base_api.Init(NULL, tess_lang, tesseract::OEM_LSTM_ONLY) == -1) {
-    std::cerr << "Failed to initialize Tesseract (OCR).\n";
-    vobsub_close(vob);
-    spudec_free(spu);
-    mp_msg_uninit();
+  // Get codec context for the subtitle stream
+  AVStream* stream = avfctx->streams[subtitle_stream_index];
+  if (verbose) {
+  std::cerr << "Subtitle stream codec_id=" << stream->codecpar->codec_id 
+            << " (" << avcodec_get_name(stream->codecpar->codec_id) << ")\n";
+  }
+
+  if (stream->codecpar->codec_type != AVMEDIA_TYPE_SUBTITLE) {
+    media_close(avfctx);
+    std::cerr << "Not a supported subtitle stream. Try using the --langlist option to find one.\n";
     return 1;
   }
   
-  // Set blacklist if not empty
-  if(!blacklist.empty()) {
-    tess_base_api.SetVariable("tessedit_char_blacklist", blacklist.c_str());
-  } else if (!nofilter){
-    tess_base_api.SetVariable("tessedit_char_blacklist", "\\/|");
+  const AVCodec* codec = avcodec_find_decoder(stream->codecpar->codec_id);
+  if (!codec) {
+    std::cerr << "Failed to find decoder for codec ID: " << stream->codecpar->codec_id << "\n";
+    media_close(avfctx);
+    return 1;
+      }
+
+  AVCodecContext* spu = avcodec_alloc_context3(codec);
+  if (!spu) {
+    std::cerr << "Failed to allocate codec context\n";
+    media_close(avfctx);
+    return 1;
   }
 
-  // Set DPI to 72, or user-specified with --dpi
-  tess_base_api.SetVariable("user_defined_dpi", tess_user_dpi.c_str());
+  // Copy codec parameters
+  avcodec_parameters_to_context(spu, stream->codecpar);
 
-  // Attempt to improve whitespace detection
+  // Open the decoder
+  if (avcodec_open2(spu, codec, nullptr) < 0) {
+    std::cerr << "Failed to open subtitle decoder\n";
+    avcodec_free_context(&spu);
+    media_close(avfctx);
+    return 1;
+  }
+
+  // Init Tesseract
+  tesseract::TessBaseAPI tess_api;
+  if(tess_api.Init(NULL, tess_lang, tesseract::OEM_LSTM_ONLY) == -1) {
+    std::cerr << "Failed to initialize Tesseract OCR.\n";
+    avcodec_free_context(&spu);
+    media_close(avfctx);
+    return 1;
+  }
+
+  // Set blacklist if not empty, otherwise strip the most common OCR failures                                                                                  
+  if(!blacklist.empty()) {
+    tess_api.SetVariable("tessedit_char_blacklist", blacklist.c_str());
+  } else if (!nofilter){
+    tess_api.SetVariable("tessedit_char_blacklist", "\\/|");
+  }
+
+  // Set DPI to 72, or user-specified with --dpi                                                                                                               
+  tess_api.SetVariable("user_defined_dpi", tess_user_dpi.c_str());
+
+  // Attempt to improve whitespace detection (old Tesseract vars, possibly not relevant anymore)                                                               
   std::string tess_rej_spaces = "0";
   std::string tess_improve_thresh = "1";
-  tess_base_api.SetVariable("tessedit_use_reject_spaces", tess_rej_spaces.c_str());
-  tess_base_api.SetVariable("tosp_improve_thresh", tess_improve_thresh.c_str());
-  
-  // Open srt output file
-  std::string const srt_filename = subname + ".srt";
+  tess_api.SetVariable("tessedit_use_reject_spaces", tess_rej_spaces.c_str());
+  tess_api.SetVariable("tosp_improve_thresh", tess_improve_thresh.c_str());
+
+  // Open srt output file - strip only the last extension (container format)
+  std::string base_name = subname;
+  size_t last_dot = base_name.find_last_of('.');
+  if (last_dot != std::string::npos) {
+    base_name = base_name.substr(0, last_dot);
+  }
+  std::string const srt_filename = base_name + "." + std::string(tess_lang) + ".srt";
   FILE *srtout = std::fopen(srt_filename.c_str(), "w");
   if(!srtout) {
     std::cerr << "Could not open .srt file for writing.\n";
     return 1;
   }
-  
-  // Read subtitles and convert
-  void *packet;
-  int timestamp; // pts100
-  int len;
-  unsigned last_start_pts = 0;
-  unsigned sub_counter = 1;
-  std::vector<sub_text_t> conv_subs;
-  conv_subs.reserve(255);
-  
-  while ((len = vobsub_get_next_packet(vob, &packet, &timestamp)) > 0) {
-    if (timestamp >= 0) {
 
-      spudec_assemble(spu, reinterpret_cast<unsigned char*>(packet), len, timestamp);
-      spudec_heartbeat(spu, timestamp);
-
-      unsigned char const *image;
-      unsigned width, height, stride, start_pts, end_pts;
-      size_t image_size;
-      
-      // Get the image data to know dimensions and timing info
-      spudec_get_data(spu, &image, &image_size, &width, &height, &stride, &start_pts, &end_pts);
-      
-      if (start_pts == last_start_pts) {
-        continue;
-      }
-
-      last_start_pts = start_pts;
-
-	      if(verbose > 0 and static_cast<uint64_t>(timestamp) != start_pts) {
-		std::cerr << sub_counter << ": time stamp from .idx (" << timestamp
-			  << ") doesn't match time stamp from .sub ("
-			  << start_pts << ")\n";
-	      }
-
-      // While tesseract version 3.05 (and older) handle inverted image (dark
-      // background and light text) without problem for 4.x version use dark
-      // text on light background.
-      // https://tesseract-ocr.github.io/tessdoc/ImproveQuality#image-processing
-      
-      ImageInverter inverter(image, image_size);
-      image = inverter.inverted_image;
-
-      if(dump_pgmfiles) {
-	dump_pgm(subname, sub_counter, width, height, stride, image, image_size);
-      }
-      
-      if (dump_pngfiles) {
-	dump_png(subname, sub_counter, width, height, stride, image);
-      }
-      /** Do OCR */
-      tess_base_api.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
-      tess_base_api.SetImage(image, width, height, 1, stride);
-      char *tesseract_text = tess_base_api.GetUTF8Text();
-      
-      std::unique_ptr<char[]> text;
-      if (!tesseract_text) {
-	text.reset(new char[80]);
-	std::strcpy(text.get(), "OCR failure! Unable to decode subtitle! Likely an empty subtitle, skipping.\n");
-	delete[] tesseract_text;
-      } else {
-	size_t len = std::strlen(tesseract_text);
-	text.reset(new char[len + 1]);
-	std::strcpy(text.get(), tesseract_text);
-	delete[] tesseract_text;
-      }
-        
-      if (text) {
-	if(show) {
-	  std::cout << "Line " << sub_counter << ": " << text.get();
-	}
-	conv_subs.emplace_back(sub_text_t(start_pts, end_pts, std::move(text)));
-	sub_counter++;
-      }
-    }
+  // Check for valid packet to read subtitles
+  AVPacket* packet = av_packet_alloc();
+  if (!packet) {
+    std::cerr << "Failed to allocate packet\n";
+    return 1;
   }
 
-    // write the file, fixing end_pts when needed
-for(unsigned i = 0; i < conv_subs.size(); ++i) {
-  if(conv_subs[i].end_pts == UINT_MAX && i+1 < conv_subs.size())
-    conv_subs[i].end_pts = conv_subs[i+1].start_pts;
-  
-  std::fprintf(srtout, "%u\n%s --> %s\n%s\n\n", i+1, pts2srt(conv_subs[i].start_pts).c_str(),
-	       pts2srt(conv_subs[i].end_pts).c_str(), conv_subs[i].text.get());
- }
+  int sub_counter = 1;
+  unsigned img_counter = 1;
+  unsigned last_start_pts = 0;
+  std::vector<sub_text_t> conv_subs;
+  conv_subs.reserve(255);
 
-    // Close up shop
- tess_base_api.End();
- std::fclose(srtout);
- vobsub_close(vob);
- spudec_free(spu);
- mp_msg_uninit();
- auto time_f = std::chrono::steady_clock::now();
- std::chrono::duration<double> elapsed = time_f - time_s;
- std::cout << "Wrote Subtitles to '" << subname << ".srt', " << elapsed.count() << " seconds elapsed.";
- return 0;
+  // Determine dump format based on user options
+  DumpFormat dump_format = DumpFormat::NONE;
+  if (dump_pngfiles) {
+    dump_format = DumpFormat::PNG;
+  } else if (dump_pgmfiles) {
+    dump_format = DumpFormat::PGM;
+  }
+
+  while (av_read_frame(avfctx, packet) >= 0) {
+    spu->skip_frame = AVDISCARD_ALL;
+    // Check if this is a subtitle packet
+    if (packet->stream_index != subtitle_stream_index) {
+      av_packet_unref(packet);
+      continue;
+    }
+
+    // Decode the subtitle packet
+    int got_sub = 0;
+    AVSubtitle subtitle;
+    memset(&subtitle, 0, sizeof(subtitle));
+    int ret = avcodec_decode_subtitle2(spu, &subtitle, &got_sub, packet);
+    
+    if (ret < 0) {
+      std::cerr << "Decode error: " << ret << "\n";
+      av_packet_unref(packet);
+      continue;
+    }
+
+    if (!got_sub) {
+      if (verbose) {
+      std::cerr << "No subtitle. Skipping.\n";
+      }
+      av_packet_unref(packet);
+      continue;
+    }
+
+    // Extract timing information from packet PTS
+    AVRational tb = stream->time_base;
+    int64_t pts_val = 0;
+    
+    if (packet->pts != AV_NOPTS_VALUE) {
+      // Copy packet->pts for our own usage
+      pts_val = packet->pts;
+    } else {
+      // Last resort: sequential timing based on stream's actual timebase
+      std::cerr << "Warning: PTS for subtitle #" << sub_counter 
+                << " is " << packet->pts << ", using default 1 second interval with timebase " << tb.den << "/" << tb.num << "\n";
+      // Add ~1 second worth of ticks in stream's timebase units (e.g., 90k for MPEG, 25 or 30 for others)
+      pts_val = last_start_pts + (tb.den / tb.num);  
+    }
+
+    // Convert from stream timebase to standard SRT format (90kHz)
+    uint64_t start_pts_90k = static_cast<uint64_t>(av_rescale_q(pts_val, tb, AVRational{1, 90000}));
+
+    // DVD subtitles don't provide accurate duration per packet (packet->duration is always 0)
+    // Use end_display_time from the dvdsub decoder.
+    uint64_t end_pts_90k = start_pts_90k + (subtitle.end_display_time*90);
+
+    // Track last PTS to detect duplicates (in stream timebase units)
+    if (pts_val == last_start_pts && pts_val != 0) {
+      if (verbose) {
+	std::cerr << "WARNING: Invalid last start PTS " << pts_val << ". Skipping.";
+	}
+      av_packet_unref(packet);
+      continue;
+    }
+
+    last_start_pts = static_cast<unsigned>(pts_val);
+
+    // Process the decoded subtitle with OCR and optionally dump images
+    std::string text = extract_subtitle_text(&subtitle, tess_api, y_threshold, 
+                                             dump_format, &subname, &img_counter);
+
+    if (!text.empty()) {
+      // Convert string to unique_ptr<char[]>
+      size_t text_len = text.length();
+      std::unique_ptr<char[]> text_ptr(new char[text_len + 1]);
+      memcpy(text_ptr.get(), text.c_str(), text_len + 1);
+
+      conv_subs.emplace_back(sub_text_t(start_pts_90k, end_pts_90k, std::move(text_ptr)));
+
+      if (show) {
+        std::cout << "Subtitle " << sub_counter << ": " << text;
+	if (verbose) {
+	  std::cerr << '\n' << "timing= " << pts2srt(start_pts_90k) << " --> " << pts2srt(end_pts_90k) << '\n';
+	}
+      }
+      if (verbose) {
+	std::cerr << "\nduration=" << packet->duration << " position= " << packet->pos << " start_display_time= "
+		  << subtitle.start_display_time << " end_display_time= " << subtitle.end_display_time << " pts_ms= "
+		  << pts_val << '\n';
+      }
+
+    // Increment amount of decoded subtitles
+      sub_counter++;
+    }
+
+    // Clean up for next iteration
+    avsubtitle_free(&subtitle);
+    av_packet_unref(packet);
+  }
+
+  // Free the packet
+  av_packet_free(&packet);
+
+  // write the file, fixing end_pts when needed
+  for(unsigned i = 0; i < conv_subs.size(); ++i) {
+    if(conv_subs[i].end_pts == UINT64_MAX) {
+      if(i+1 < conv_subs.size()) {
+        // Use next subtitle's start time as this subtitle's end time
+        conv_subs[i].end_pts = conv_subs[i+1].start_pts;
+      } else {
+        // Last subtitle: add a reasonable default duration (~2 seconds in 90kHz = 180000 ticks)
+	// this may have been a kludgy workaround that should be fixed. needs testing with a bad pts subtitle.
+        conv_subs[i].end_pts = conv_subs[i].start_pts + 180000;
+      }
+    }
+
+    std::fprintf(srtout, "%u\n%s --> %s\n%s\n\n", i+1, pts2srt(conv_subs[i].start_pts).c_str(),
+		 pts2srt(conv_subs[i].end_pts).c_str(), conv_subs[i].text.get());
+  }
+
+  // Close up shop
+  tess_api.End();
+  std::fclose(srtout);
+  avcodec_free_context(&spu);
+  media_close(avfctx);
+
+  auto time_f = std::chrono::steady_clock::now();
+  std::chrono::duration<double> elapsed = time_f - time_s;
+  std::cout << "Wrote Subtitles to '" << srt_filename << "', " << elapsed.count() << " seconds elapsed.\n";
+
+  return 0;
 }

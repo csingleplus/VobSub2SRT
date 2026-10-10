@@ -1,0 +1,24 @@
+Source: vobsub2srt
+Section: video
+Priority: optional
+Maintainer: Christopher Ogloff <chris.ogloff@gmail.com>
+Build-Depends: debhelper-compat (= 13),
+               cmake,
+               pkg-config,
+               libavformat-dev,
+               libavcodec-dev,
+               libavutil-dev,
+               libtesseract-dev,
+               libleptonica-dev,
+               libpng-dev
+Standards-Version: 4.7.0
+Homepage: https://github.com/csingleplus/VobSub2SRT
+Vcs-Browser: https://github.com/csingleplus/VobSub2SRT
+Vcs-Git: https://github.com/csingleplus/VobSub2SRT.git
+Rules-Requires-Root: no
+Description: Decodes DVD subtitles from any container supported by FFmpeg, or .idx/sub files.
+Package: vobsub2srt
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: tesseract-ocr-eng
+Suggests: tesseract-ocr-all

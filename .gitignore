@@ -7,3 +7,7 @@ test/
 /TAGS
 *DS_Store
 valgrind.log
+*.srt
+*.sub
+*.idx
+*.ifo

@@ -1,9 +1,9 @@
-Most code is from the MPlayer project.
 - Chris Ogloff <chris.ogloff@gmail.com> Mar. 2026: added memory safety,
   modern Tesseract calls, validated with Valgrind, separated MPlayer verbosity
   from displaying realtime subtitle decoding, ensured compatibility across Linux distributions.
   Apr. 2026: Scaling code implemented (though it needs preprocessing).
   Jun. 2026: PNG writing implemented.
+  Oct. 2026: Overhauled with FFmpeg format handling and decoding
 - Ethan Dye <mrtops03@gmail.com> https://github.com/ecdye/VobSub2SRT
   Image inversion code, resulting in cleaner and quicker output.
 - Armin Häberling <armin.aha@gmail.com> wrote a patch to fix an issue with

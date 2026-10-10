@@ -1,8 +1,5 @@
-include_directories(${vobsub2srt_SOURCE_DIR}/mplayer)
-
-link_directories(${Libavutil_LIBRARY_DIRS})
-include_directories(${Libavutil_INCLUDE_DIRS})
-include_directories(${Tesseract_INCLUDE_DIR})
+link_directories(${Libavformat_LIBRARY_DIRS} ${Libavcodec_LIBRARY_DIRS} ${Libavutil_LIBRARY_DIRS})
+include_directories(${Libavformat_INCLUDE_DIRS} ${Libavcodec_INCLUDE_DIRS} ${Libavutil_INCLUDE_DIRS})
 
 set(vobsub2srt_sources
   vobsub2srt.c++
@@ -17,6 +14,11 @@ if(BUILD_STATIC)
                         LINK_SEARCH_END_STATIC ON
                         LINK_FLAGS -static)
 endif()
-target_link_libraries(vobsub2srt PNG::PNG mplayer ${Libavutil_LIBRARIES} ${Leptonica_LIBRARIES} ${Tesseract_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(vobsub2srt PNG::PNG 
+                      ${Libavformat_LIBRARIES} 
+                      ${Libavcodec_LIBRARIES}
+                      ${Libavutil_LIBRARIES}
+                      ${Leptonica_LIBRARIES} 
+                      ${Tesseract_LIBRARIES})
 
 install(TARGETS vobsub2srt RUNTIME DESTINATION ${INSTALL_EXECUTABLES_PATH})

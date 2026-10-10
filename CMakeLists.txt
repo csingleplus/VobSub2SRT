@@ -4,13 +4,7 @@ project(vobsub2srt)
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/CMakeModules)
 
 if(NOT CMAKE_BUILD_TYPE)
-    set(
-        CMAKE_BUILD_TYPE
-        Release
-        CACHE
-        STRING
-        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
-        FORCE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None, Debug, Release" FORCE)
 endif()
 
 message(STATUS "Source: ${CMAKE_SOURCE_DIR}")
@@ -40,39 +34,45 @@ set(INSTALL_DOC_DIR "${INSTALL_DOC_DIR_BASE}/${CMAKE_PROJECT_NAME}" CACHE STRING
 set(INSTALL_MAN_DIR "${INSTALL_DATA_DIR_BASE}/man/man1" CACHE STRING "Custom manpage installation directory without suffixes")
 
 install(FILES "${CMAKE_SOURCE_DIR}/debian/copyright" DESTINATION ${INSTALL_DOC_DIR})
-install(FILES "${CMAKE_SOURCE_DIR}/README.org" DESTINATION ${INSTALL_DOC_DIR} RENAME README)
+install(FILES "${CMAKE_SOURCE_DIR}/README.md" DESTINATION ${INSTALL_DOC_DIR} RENAME README)
 
 add_definitions("-DINSTALL_PREFIX=\"${CMAKE_INSTALL_PREFIX}\"")
 
 include(CheckIncludeFile)
-include(CheckCCompilerFlag)
-include(CheckCSourceCompiles)
-include(CheckCSourceRuns)
+#include(CheckCCompilerFlag)
+#include(CheckCSourceCompiles)
+#include(CheckCSourceRuns)
 include(CheckCXXCompilerFlag)
 include(CheckCXXSourceCompiles)
 include(CheckCXXSourceRuns)
 
-set(CMAKE_C_STANDARD 17)
-set(CMAKE_C_FLAGS "-Wall -Wextra")
-set(CMAKE_CXX_STANDARD 11)
+#set(CMAKE_C_STANDARD 17)
+#set(CMAKE_C_FLAGS "-Wall -Wextra")
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "-pedantic -Wall -Wextra")
 
-set(CMAKE_CXX_FLAGS_RELEASE "-O2 -march=native -DNDEBUG")
-set(CMAKE_C_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
-set(CMAKE_CXX_FLAGS_DEBUG "-g3 -DDEBUG -fsanitize=address,undefined")
-set(CMAKE_C_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
+set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
+#set(CMAKE_C_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
+set(CMAKE_CXX_FLAGS_DEBUG "-fsanitize=address,undefined -g3 -DDEBUG")
+#set(CMAKE_C_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
 
 find_package(Leptonica REQUIRED)
-find_package(Tesseract REQUIRED)
+find_package(Tesseract 4 REQUIRED)
 find_package(PNG REQUIRED)
+find_package(avutil REQUIRED)
+find_package(avcodec REQUIRED)
+find_package(avformat REQUIRED)
 
-add_subdirectory(mplayer)
 add_subdirectory(src)
 add_subdirectory(doc)
 
 #### Detect Version
 if(NOT VOBSUB2SRT_VERSION)
-  if(EXISTS "${vobsub2srt_SOURCE_DIR}/version")
+  # Try to extract version from src/version.h++
+  if(EXISTS "${CMAKE_SOURCE_DIR}/src/version.h++")
+    file(READ "${CMAKE_SOURCE_DIR}/src/version.h++" VERSION_HEADER_CONTENT)
+    string(REGEX REPLACE ".*#define _VOBSUB2SRT_VERSION_ \"([^\"]+)\".*" "\\1" VOBSUB2SRT_VERSION "${VERSION_HEADER_CONTENT}")
+  elseif(EXISTS "${vobsub2srt_SOURCE_DIR}/version")
     file(READ "${vobsub2srt_SOURCE_DIR}/version" VOBSUB2SRT_VERSION)
     string(REGEX REPLACE "\n" "" VOBSUB2SRT_VERSION "${VOBSUB2SRT_VERSION}")
   elseif(EXISTS "${vobsub2srt_SOURCE_DIR}/.git")
@@ -124,16 +124,16 @@ else()
   set(CPACK_PACKAGE_VERSION "${VOBSUB2SRT_VERSION}")
   set(CPACK_PACKAGE_CONTACT "Christopher Ogloff <chris.ogloff@gmail.com>")
   set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/csingleplus/VobSub2SRT")
-  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Converts VobSub subtitles (.idx/.srt format) into .srt subtitles.")
-  set(CPACK_PACKAGE_DESCRIPTION "VobSub2SRT is a simple command line program to convert .idx / .sub subtitles\ninto .srt text subtitles by using OCR. It is based on code from the MPlayer\nproject.\nTesseract is used as OCR software.")
+  set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Converts DVD subtitles (.idx/.sub format or a libavformat-compatible container) into .srt subtitles.")
+  set(CPACK_PACKAGE_DESCRIPTION "Decodes and converts DVD subtitles from any container supported by FFmpeg, or .idx/sub files to .srt.\nTesseract is used as OCR software.")
 
   set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/debian/copyright")
-  set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.org")
+  set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
   set(CPACK_STRIP_FILES TRUE)
 
   set(CPACK_DEBIAN_PACKAGE_SECTION "video")
-  set(CPACK_DEBIAN_PACKAGE_DEPENDS libtesseract-dev)
-  set(CPACK_DEBIAN_PACKAGE_BUILD_DEPENDS libavutil-dev libtiff5-dev libpng-dev libtesseract-dev tesseract-ocr-eng cmake pkg-config)
+  set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS libtesseract-dev libleptonica-dev libtiff5-dev libpng-dev libavcodec-dev libavformat-dev libavutil-dev)
+  set(CPACK_DEBIAN_PACKAGE_BUILD_DEPENDS libavcodec-dev libavformat-dev libavutil-dev libtiff5-dev libpng-dev libtesseract-dev libleptonica-dev tesseract-ocr-eng cmake g++ pkg-config)
 #  set(CPACK_DEBIAN_GIT_DCH TRUE)
   set(CPACK_DEBIAN_UPDATE_CHANGELOG TRUE)
   set(PPA_DEBIAN_VERSION "ppa1")

@@ -20,7 +20,6 @@
 
 #ifndef _VERSION_H_
 #define _VERSION_H_
-
-const std::string version = "1.1.5";
-
+#define _VOBSUB2SRT_VERSION_ "2.0.0-rc1"
 #endif
+
