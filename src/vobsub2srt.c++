@@ -598,7 +598,7 @@ int main(int argc, char **argv) {
   }
 
   while (av_read_frame(avfctx, packet) >= 0) {
-    spu->skip_frame = AVDISCARD_ALL;
+
     // Check if this is a subtitle packet
     if (packet->stream_index != subtitle_stream_index) {
       av_packet_unref(packet);
