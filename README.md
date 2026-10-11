@@ -96,6 +96,6 @@ Use `--help` or read the manpage to get more information about the options of vo
 Please submit bug reports or feature requests to the [issue tracker on GitHub](https://github.com/csingleplus/VobSub2SRT/issues).
 
 If you have problems with a specific subtitle file then please check if it works in a media player (I recommend `mpv`) first.
-```
+
 
 For bug reports please run `vobsub2srt` with the `--verbose` option and copy and paste the lines around where the error occurs to the report, and describe the issue surrounding it. Please include the version used with the problem as well.
