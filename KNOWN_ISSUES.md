@@ -13,7 +13,7 @@ Supported language codes include: `eng`, `deu`, `fra`, `spa`, `ita`, `jpn`, `chi
 
 ## IFO File Support
 
-IFO file support is currently not functional. The program accepts the `-i` option for specifying IFO files for script compatibility, but this feature is not implemented in the current FFmpeg-based implementation.
+IFO file support is currently not functional. The program accepts the `-i` option for specifying IFO files for script compatibility, but this feature is not implemented in the current code.
 
 ## Musical Note Recognition
 
