@@ -2,6 +2,7 @@
  *  This file is part of vobsub2srt
  *
  *  Copyright (C) 2010-2016 Rüdiger Sonderfeld <ruediger@c-plusplus.de>
+ *  Copyright (C) 2026 Christopher Ogloff <chris.ogloff@gmail.com> (small fix to allow pure ISO-639-3 to work, and Zulu added.)
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -407,10 +408,11 @@ static bool compare(char const *lhs, char const *rhs) {
 }
 
 char const *iso639_1_to_639_3(char const *lang) {
-  assert(sizeof(iso639_1) == sizeof(iso639_3)); 
-  char const *const * i = std::lower_bound(iso639_1, iso639_1_end, lang, compare); // binary search
-  if(i == iso639_1_end) {
-    return 0x0;
+  // For 2-character ISO-639-1 codes, perform lookup.
+  assert(sizeof(iso639_1) == sizeof(iso639_3));  // Ensure ISO-639-1 table matches 639-3 in size.
+  char const *const * i = std::lower_bound(iso639_1, iso639_1_end, lang, compare);  // Binary search
+  if(i == iso639_1_end || std::strcmp(*i, lang) != 0) {  // If ISO639-1 not found, return null
+    return nullptr;
   }
   else {
     return iso639_3[i - iso639_1];

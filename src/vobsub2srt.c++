@@ -465,7 +465,18 @@ int main(int argc, char **argv) {
   }
 
   // Default OCR language to eng unless overridden by user or inferred from selected subtitle track.
-  char const *tess_lang = tess_lang_user.empty() ? "eng" : tess_lang_user.c_str();
+  std::string tess_lang_str = tess_lang_user.empty() ? "eng" : tess_lang_user;
+
+  // Helper to check if a language code should skip conversion (placeholder/special codes)
+  auto is_placeholder_lang = [](const std::string& lang) -> bool {
+    // Skip placeholder and special ISO-639-3 codes that have ambiguous/misc languages
+    return lang == "unk" || lang == "mul" || lang == "mis" || lang == "zxx" ||
+           (lang.length() == 3 && lang[0] == 'q' && lang[1] >= 'a' && lang[1] <= 't'); // qaa-qtz
+  };
+
+  // Track if encountering a placeholder language code
+  bool placeholder_lang_used = false;
+
   if(!lang.empty()) {
     int stream_idx = sub_set_from_lang(avfctx, lang.c_str());
     if (stream_idx < 0) {
@@ -473,9 +484,18 @@ int main(int argc, char **argv) {
     } else {
       subtitle_stream_index = stream_idx;
       if(tess_lang_user.empty()) {
-        char const *const lang3 = iso639_1_to_639_3(lang.c_str());
-        if(lang3) {
-          tess_lang = lang3;
+        // Same as above.
+        if(lang.length() == 3 && !is_placeholder_lang(lang)) {
+          tess_lang_str = lang;
+        } else {
+          char const *const lang3 = iso639_1_to_639_3(lang.c_str());
+          if(lang3) {
+            tess_lang_str = lang3;
+          } else {
+            if(is_placeholder_lang(lang)) {
+              placeholder_lang_used = true;
+            }
+          }
         }
       }
     }
@@ -484,6 +504,7 @@ int main(int argc, char **argv) {
       if(static_cast<unsigned>(index) >= avfctx->nb_streams) {
         std::cerr << "Index argument out of range: " << index << " ("
                   << avfctx->nb_streams << ")\n";
+	media_close(avfctx);
         return 1;
       }
       subtitle_stream_index = index;
@@ -492,13 +513,24 @@ int main(int argc, char **argv) {
     if(subtitle_stream_index >= 0) {
       std::string lang1 = sub_get_id(avfctx, static_cast<unsigned>(subtitle_stream_index));
       if(!lang1.empty() && tess_lang_user.empty()) {
-        char const *const lang3 = iso639_1_to_639_3(lang1.c_str());
-        if(lang3) {
-          tess_lang = lang3;
+        // If the language code is already 3 characters and not a placeholder, use it directly. ISO639-2 soon.
+        if(lang1.length() == 3 && !is_placeholder_lang(lang1)) {
+          tess_lang_str = lang1;
+        } else {
+          char const *const lang3 = iso639_1_to_639_3(lang1.c_str());
+          if(lang3) {
+            tess_lang_str = lang3;
+          } else {
+            // No valid conversion found, mark as placeholder
+            if(is_placeholder_lang(lang1)) {
+              placeholder_lang_used = true;
+            }
+          }
         }
       }
     }
   }
+  char const *tess_lang = tess_lang_str.c_str();
 
   // Get codec context for the subtitle stream
   AVStream* stream = avfctx->streams[subtitle_stream_index];
@@ -507,7 +539,7 @@ int main(int argc, char **argv) {
             << " (" << avcodec_get_name(stream->codecpar->codec_id) << ")\n";
   }
 
-  if (stream->codecpar->codec_type != AVMEDIA_TYPE_SUBTITLE) {
+  if (stream->codecpar->codec_type != AVMEDIA_TYPE_SUBTITLE || stream->codecpar->codec_id != 94208) {
     media_close(avfctx);
     std::cerr << "Not a supported subtitle stream. Try using the --langlist option to find one.\n";
     return 1;
@@ -515,7 +547,8 @@ int main(int argc, char **argv) {
   
   const AVCodec* codec = avcodec_find_decoder(stream->codecpar->codec_id);
   if (!codec) {
-    std::cerr << "Failed to find decoder for codec ID: " << stream->codecpar->codec_id << "\n";
+    std::cerr << "Failed to find decoder for codec ID: " << stream->codecpar->codec_id << "("
+	      << avcodec_get_name(stream->codecpar->codec_id) << ")" << "\n";
     media_close(avfctx);
     return 1;
       }
@@ -564,12 +597,19 @@ int main(int argc, char **argv) {
   tess_api.SetVariable("tosp_improve_thresh", tess_improve_thresh.c_str());
 
   // Open srt output file - strip only the last extension (container format)
-  std::string base_name = subname;
-  size_t last_dot = base_name.find_last_of('.');
-  if (last_dot != std::string::npos) {
-    base_name = base_name.substr(0, last_dot);
+  std::string srt_filename;
+  if(!outfile.empty()) {
+    // Use user-provided output filename
+    srt_filename = outfile;
+  } else {
+    // Default: <subname>.<lang>.srt
+    std::string base_name = subname;
+    size_t last_dot = base_name.find_last_of('.');
+    if (last_dot != std::string::npos) {
+      base_name = base_name.substr(0, last_dot);
+    }
+    srt_filename = base_name + "." + std::string(tess_lang) + ".srt";
   }
-  std::string const srt_filename = base_name + "." + std::string(tess_lang) + ".srt";
   FILE *srtout = std::fopen(srt_filename.c_str(), "w");
   if(!srtout) {
     std::cerr << "Could not open .srt file for writing.\n";
@@ -648,7 +688,7 @@ int main(int argc, char **argv) {
     uint64_t end_pts_90k = start_pts_90k + (subtitle.end_display_time*90);
 
     // Track last PTS to detect duplicates (in stream timebase units)
-    if (pts_val == last_start_pts && pts_val != 0) {
+    if (pts_val == last_start_pts && pts_val != 0 || pts_val == AV_NOPTS_VALUE) {
       if (verbose) {
 	std::cerr << "WARNING: Invalid last start PTS " << pts_val << ". Skipping.";
 	}
@@ -694,7 +734,7 @@ int main(int argc, char **argv) {
   // Free the packet
   av_packet_free(&packet);
 
-  // write the file, fixing end_pts when needed
+  // Write the file, fixing end_pts when needed
   for(unsigned i = 0; i < conv_subs.size(); ++i) {
     if(conv_subs[i].end_pts == UINT64_MAX) {
       if(i+1 < conv_subs.size()) {
@@ -720,6 +760,13 @@ int main(int argc, char **argv) {
   auto time_f = std::chrono::steady_clock::now();
   std::chrono::duration<double> elapsed = time_f - time_s;
   std::cout << "Wrote Subtitles to '" << srt_filename << "', " << elapsed.count() << " seconds elapsed.\n";
+  
+  // Warn if a placeholder language code was used, and instruct the user
+  if(placeholder_lang_used) {
+    std::cerr << "\nWARNING: The subtitle track had a placeholder/unknown language code.\n"
+              << "If the OCR results look wrong, please specify the correct language with --tesseract-lang\n"
+              << "See --help for more information.\n";
+  }
 
   return 0;
 }

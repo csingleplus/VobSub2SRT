@@ -13,7 +13,7 @@ The quality of the OCR depends on the text in the subtitles. You can correct mis
 - Now uses `avformat_open_input()`, `avcodec_decode_subtitle2()`, and `AVSubtitle` handling
 - Improved Tesseract integration
 - New `--env` flag to show Tesseract's data path if TESSDATA_PREFIX is set.
-- Note: I forgot the code for the --output option. Coming very soon.
+- Use the `--output`, or `-o` flag to set your own filename.
 
 
 ### July 2026

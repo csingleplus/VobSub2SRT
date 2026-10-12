@@ -20,6 +20,6 @@
 
 #ifndef _VERSION_H_
 #define _VERSION_H_
-#define _VOBSUB2SRT_VERSION_ "2.0.0-rc1"
+#define _VOBSUB2SRT_VERSION_ "2.0.0-rc2"
 #endif
 
