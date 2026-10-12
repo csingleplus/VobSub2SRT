@@ -156,6 +156,10 @@ AVFormatContext* media_open(const char* subname, const char* ifo_file,
 			    int& subtitle_stream_index) {
   (void)ifo_file; // TODO: complete this
   std::string sub_path = subname;
+  if (sub_path.empty()) {
+    std::cerr << "No filename specified.";
+    return nullptr;
+  }
   // Append ".idx" extension only if the filename has no extension TODO: check for other media extensions
   size_t dot_pos = sub_path.find_last_of('.');
   if (dot_pos == std::string::npos) { /* check if .idx exists and use it. better to use std::filesystem */
@@ -539,7 +543,7 @@ int main(int argc, char **argv) {
             << " (" << avcodec_get_name(stream->codecpar->codec_id) << ")\n";
   }
 
-  if (stream->codecpar->codec_type != AVMEDIA_TYPE_SUBTITLE || stream->codecpar->codec_id != 94208) {
+  if (stream->codecpar->codec_id != 94208) {
     media_close(avfctx);
     std::cerr << "Not a supported subtitle stream. Try using the --langlist option to find one.\n";
     return 1;
@@ -688,7 +692,7 @@ int main(int argc, char **argv) {
     uint64_t end_pts_90k = start_pts_90k + (subtitle.end_display_time*90);
 
     // Track last PTS to detect duplicates (in stream timebase units)
-    if (pts_val == last_start_pts && pts_val != 0 || pts_val == AV_NOPTS_VALUE) {
+    if (pts_val == last_start_pts && pts_val != 0) {
       if (verbose) {
 	std::cerr << "WARNING: Invalid last start PTS " << pts_val << ". Skipping.";
 	}
