@@ -46,15 +46,11 @@ include(CheckCXXCompilerFlag)
 include(CheckCXXSourceCompiles)
 include(CheckCXXSourceRuns)
 
-#set(CMAKE_C_STANDARD 17)
-#set(CMAKE_C_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "-pedantic -Wall -Wextra")
 
-set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
-#set(CMAKE_C_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
+set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG -s")
 set(CMAKE_CXX_FLAGS_DEBUG "-fsanitize=address,undefined -g3 -DDEBUG")
-#set(CMAKE_C_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
 
 find_package(Leptonica REQUIRED)
 find_package(Tesseract 4 REQUIRED)
