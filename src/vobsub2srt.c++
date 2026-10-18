@@ -101,8 +101,8 @@ void dump_pgm(const std::string &filename, unsigned counter, unsigned width, uns
   std::ofstream pgm(buf, std::ios::binary);
   if(pgm) {
     pgm << "P5\n" << width << " " << height << " 255\n";
-    for(size_t i = 0; i < stride * height; i += stride) {
-      pgm.write(reinterpret_cast<const char*>(image + i), width);
+    for(size_t i = 0; i < height; ++i) {
+      pgm.write(reinterpret_cast<const char*>(image + i * stride), width);
     }
   }
 }
