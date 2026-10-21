@@ -93,11 +93,15 @@ std::string pts2srt(uint64_t pts) {
 
 
 /** Converts image data to Netpbm PGM format */
-void dump_pgm(const std::string &filename, unsigned counter, unsigned width, unsigned height,
+void dump_pgm(const std::string &filename, unsigned counter, const char* file_lang, unsigned width, unsigned height,
               unsigned stride, const unsigned char *image) {
 
   char buf[500];
-  std::snprintf(buf, sizeof(buf), "%s-%04u.pgm", filename.c_str(), counter);
+  if (file_lang && strlen(file_lang) > 0) {
+    std::snprintf(buf, sizeof(buf), "%s-%04u.%s.pgm", filename.c_str(), counter, file_lang);
+  } else {
+    std::snprintf(buf, sizeof(buf), "%s-%04u.pgm", filename.c_str(), counter);
+  }
   std::ofstream pgm(buf, std::ios::binary);
   if(pgm) {
     pgm << "P5\n" << width << " " << height << " 255\n";
@@ -108,11 +112,15 @@ void dump_pgm(const std::string &filename, unsigned counter, unsigned width, uns
 }
 
 /** Or, to PNG */
-void dump_png(const std::string &filename, unsigned counter, unsigned width, unsigned height,
+void dump_png(const std::string &filename, unsigned counter, const char* file_lang, unsigned width, unsigned height,
               unsigned stride, const unsigned char* image) {
 
   char buf[500];
-  std::snprintf(buf, sizeof(buf), "%s-%04u.png", filename.c_str(), counter);
+  if (file_lang && strlen(file_lang) > 0) {
+    std::snprintf(buf, sizeof(buf), "%s-%04u.%s.png", filename.c_str(), counter, file_lang);
+  } else {
+    std::snprintf(buf, sizeof(buf), "%s-%04u.png", filename.c_str(), counter);
+  }
   FILE* pngfile = std::fopen(buf, "wb");
   if (!pngfile) {
     return;
@@ -269,10 +277,11 @@ int min_width = 8;
 int min_height = 8;
 
 std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess,
-				  int y_threshold,
-				  DumpFormat dump_format = DumpFormat::NONE,
-				  const std::string* filename_base = nullptr,
-				  unsigned* counter_ptr = nullptr) {
+                                  int y_threshold,
+                                  DumpFormat dump_format = DumpFormat::NONE,
+                                  const std::string* filename_base = nullptr,
+                                  unsigned* counter_ptr = nullptr,
+                                  const char* file_lang = nullptr) {
   std::string result;
 
   for (unsigned i = 0; i < subtitle->num_rects; ++i) {
@@ -333,17 +342,17 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
     }
 
     // Dump image if requested (PNG or PGM format)
-    if (dump_format != DumpFormat::NONE && filename_base && counter_ptr) {
+    if (dump_format != DumpFormat::NONE && filename_base && counter_ptr && file_lang) {
       unsigned width = rect->w;
       unsigned height = rect->h;
       unsigned stride = rect->w;
       
       switch (dump_format) {
         case DumpFormat::PNG:
-          dump_png(*filename_base, *counter_ptr, width, height, stride, image.get());
+          dump_png(*filename_base, *counter_ptr, file_lang, width, height, stride, image.get());
           break;
         case DumpFormat::PGM:
-          dump_pgm(*filename_base, *counter_ptr, width, height, stride, image.get());
+          dump_pgm(*filename_base, *counter_ptr, file_lang, width, height, stride, image.get());
           break;
         default:
           break;
@@ -703,8 +712,8 @@ int main(int argc, char **argv) {
     last_start_pts = static_cast<unsigned>(pts_val);
 
     // Process the decoded subtitle with OCR and optionally dump images
-    std::string text = extract_subtitle_text(&subtitle, tess_api, y_threshold, 
-                                             dump_format, &subname, &img_counter);
+    std::string text = extract_subtitle_text(&subtitle, tess_api, y_threshold,
+                                             dump_format, &subname, &img_counter, tess_lang);
 
     if (!text.empty()) {
       // Convert string to unique_ptr<char[]>
