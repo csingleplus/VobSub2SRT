@@ -1,6 +1,6 @@
-.TH vobsub2srt 2.0.0-rc1 "10 Oct 2026"
+.TH vobsub2srt 2.0.0-rc3 "21 Oct 2026"
 .SH NAME
-vobsub2srt \- Converts DVD bitmap subtitles (.idx/.sub or directly from a FFmpeg-compatible file) into .srt subtitles using Tesseract OCR
+vobsub2srt \- Converts DVD bitmap subtitles (.idx/.sub or directly from a FFmpeg-compatible file) into .srt subtitles using Tesseract OCR and libavcodec et. al.
 .SH SYNOPSIS
 \fBvobsub2srt\fR [\fIOPTION\fR] \fIFILENAME\fR
 .SH DESCRIPTION
@@ -9,6 +9,8 @@ vobsub2srt converts subtitles in dvd_subtitle/vobsub (.idx/.sub) format into the
 OCR is used to extract the text from the subtitles.  vobsub2srt uses tesseract for OCR and uses FFmpeg libraries to demultiplex and decode.
 
 Note: VOB files will possibly only work on discs without encryption.
+
+
 .SH OPTIONS
 .TP
 \fIFILENAME\fR
@@ -41,7 +43,7 @@ The index of the subtitle to convert.  Use this instead \fI--lang\fR if there ar
 Combining \fI--lang\fR and \fI--index\fR does not work!
 .TP
 \fB\-\-ifo\fR \fIifo-file\fR
-To use a specific IFO file for the palette (useful when no OCR happens). Note: this does not work at the moment in 2.0.0, but the option will be added back in a future release.
+To use a specific IFO file for the palette (useful when no OCR happens).
 .TP
 \fB\-\-tesseract-lang\fR \fIlanguage\fR
 Set the language to be used by Tesseract.  This is auto detected in .idx files and normally does not need to be changed.

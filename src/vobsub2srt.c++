@@ -23,6 +23,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/dict.h>
+#include <libavutil/opt.h>
 }
 
 // Tesseract OCR
@@ -160,9 +161,9 @@ void dump_png(const std::string &filename, unsigned counter, const char* file_la
  * Open a media file and return the format context.
  * Also finds the first subtitle stream index.
  */
-AVFormatContext* media_open(const char* subname, const char* ifo_file,
-			    int& subtitle_stream_index) {
-  (void)ifo_file; // TODO: complete this
+
+AVFormatContext* media_open(const char* subname, const char*,
+				int& subtitle_stream_index) {
   std::string sub_path = subname;
   if (sub_path.empty()) {
     std::cerr << "No filename specified.";
@@ -170,7 +171,7 @@ AVFormatContext* media_open(const char* subname, const char* ifo_file,
   }
   // Append ".idx" extension only if the filename has no extension TODO: check for other media extensions
   size_t dot_pos = sub_path.find_last_of('.');
-  if (dot_pos == std::string::npos) { /* check if .idx exists and use it. better to use std::filesystem */
+  if (dot_pos == std::string::npos) { /* if .idx exists, use it. better to use std::filesystem */
     sub_path += ".idx";
   }
 
@@ -393,6 +394,8 @@ int main(int argc, char **argv) {
   int y_threshold = 16;
 
   auto time_s = std::chrono::steady_clock::now(); // Start runtime counter
+  av_log_set_level(AV_LOG_WARNING); // Set libav warning level.
+
   {
     cmd_options opts;
     opts.
@@ -403,7 +406,7 @@ int main(int argc, char **argv) {
       add_option("dump-pgm", dump_pgmfiles, "Save subtitles as sequential NetPBM image files (<subname>-0001.pgm etc.).").
       add_option("dump-png", dump_pngfiles, "Above, but in PNG format.").
       add_option("verbose", verbose, "Debug prints to stderr.").
-      add_option("ifo", ifo_file, "Unused at the moment, option kept for script compatibility.").
+      add_option("ifo", ifo_file, "IFO file for DVD subtitle palette extraction (e.g., VIDEO_TS.IFO/VTS_01_0.IFO)").
       add_option("lang", lang, "Language to select", 'l').
       add_option("langlist", list_languages, "List languages and exit").
       add_option("index", index, "Subtitle index", 'i').
@@ -422,24 +425,27 @@ int main(int argc, char **argv) {
     }
   }
 
-// Display relevant environment variable status
+  // 
+
+  // Display relevant environment variable status
   if (env) {
     const char* tesspfx = std::getenv("TESSDATA_PREFIX");
-    bool tessdata_env = (tesspfx && std::string(tesspfx) != "1");
-
-    if (tess_user_dir.empty() && tessdata_env) {
-      std::cout << "TESSDATA_PREFIX: " << tesspfx << '\n';
-    }
+    bool tessdata_env = (tesspfx != nullptr);
 
     if (!tess_user_dir.empty()) {
-      std::cout << "--tesseract-data set to: " << tess_user_dir << '\n'; /*   wrote this entire section in a hurry, clean it up.  */
-    }
-
-    if (tess_user_dir.empty() && !tessdata_env) {
-      std::cout << "TESSDATA_PREFIX unset. Using default Tesseract data directory.\n";
+      std::cout << "--tesseract-data set to: " << tess_user_dir << ", overriding $TESSDATA_PREFIX if set.\n";
+    } else if (tessdata_env) {
+      std::cout << "$TESSDATA_PREFIX: " << tesspfx << '\n';
+    } else {
+      std::cout << "--tesseract-data or TESSDATA_PREFIX unset. Using default Tesseract data directory.\n";
     }
 
     return 0;
+  }
+
+  // Set verbose flag av_log level
+  if (verbose) {
+    av_log_set_level(AV_LOG_DEBUG);
   }
 
   // Set Y threshold
@@ -448,7 +454,6 @@ int main(int argc, char **argv) {
   }
 
   // Open the subtitles using FFmpeg. This assumes DVD subtitles (dvd_subtitle codec)
-  // TODO: test with IFO.
   int subtitle_stream_index = -1;
   AVFormatContext* avfctx = media_open(subname.c_str(), ifo_file.empty() ? nullptr : ifo_file.c_str(),
                                       subtitle_stream_index);
@@ -526,7 +531,7 @@ int main(int argc, char **argv) {
     if(subtitle_stream_index >= 0) {
       std::string lang1 = sub_get_id(avfctx, static_cast<unsigned>(subtitle_stream_index));
       if(!lang1.empty() && tess_lang_user.empty()) {
-        // If the language code is already 3 characters and not a placeholder, use it directly. ISO639-2 soon.
+        // If the language code is already 3 characters and not a placeholder, use it directly.
         if(lang1.length() == 3 && !is_placeholder_lang(lang1)) {
           tess_lang_str = lang1;
         } else {
@@ -564,13 +569,19 @@ int main(int argc, char **argv) {
 	      << avcodec_get_name(stream->codecpar->codec_id) << ")" << "\n";
     media_close(avfctx);
     return 1;
-      }
+  }
 
   AVCodecContext* spu = avcodec_alloc_context3(codec);
   if (!spu) {
     std::cerr << "Failed to allocate codec context\n";
     media_close(avfctx);
     return 1;
+  }
+
+  // Set IFO palette option if provided
+  if (!ifo_file.empty()) {
+    std::cout << "Using IFO file for palette: " << ifo_file << "\n";
+    av_opt_set(spu->priv_data, "ifo_palette", ifo_file.c_str(), 0);
   }
 
   // Copy codec parameters
@@ -582,6 +593,11 @@ int main(int argc, char **argv) {
     avcodec_free_context(&spu);
     media_close(avfctx);
     return 1;
+  }
+
+  if (verbose) {
+  int dbg_ifo = av_opt_set(spu, "ifo_palette", ifo_file.c_str(), AV_OPT_SEARCH_CHILDREN);
+  if (dbg_ifo < 0) av_log(nullptr, AV_LOG_ERROR, "ifo_palette: %s\n", av_err2str(dbg_ifo));
   }
 
   // Init Tesseract
@@ -596,7 +612,7 @@ int main(int argc, char **argv) {
   // Set blacklist if not empty, otherwise strip the most common OCR failures                                                                                  
   if(!blacklist.empty()) {
     tess_api.SetVariable("tessedit_char_blacklist", blacklist.c_str());
-  } else if (!nofilter){
+  } else if (!nofilter && blacklist.empty()) {
     tess_api.SetVariable("tessedit_char_blacklist", "\\/|");
   }
 
@@ -772,7 +788,13 @@ int main(int argc, char **argv) {
 
   auto time_f = std::chrono::steady_clock::now();
   std::chrono::duration<double> elapsed = time_f - time_s;
-  std::cout << "Wrote Subtitles to '" << srt_filename << "', " << elapsed.count() << " seconds elapsed.\n";
+  if (dump_pngfiles) {
+    std::cout << "Wrote images to '" << subname << "-count." << tess_lang << ".png.\n";
+  }
+  if (dump_pgmfiles) {
+    std::cout << "Wrote images to '" << subname << "-count." << tess_lang << ".pgm.\n";
+  }
+  std::cout << "Wrote subtitles to '" << srt_filename << "', " << elapsed.count() << " seconds elapsed.\n";
   
   // Warn if a placeholder language code was used, and instruct the user
   if(placeholder_lang_used) {

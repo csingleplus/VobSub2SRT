@@ -14,6 +14,7 @@ The quality of the OCR depends on the text in the subtitles. You can correct mis
 - Improved Tesseract integration
 - New `--env` flag to show Tesseract's data path if TESSDATA_PREFIX is set.
 - Use the `--output`, or `-o` flag to set your own filename.
+- `--ifo` flag fixed.
 
 
 ### July 2026
