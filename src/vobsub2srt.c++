@@ -182,7 +182,7 @@ AVFormatContext* media_open(const char* subname, const char* ifo_file,
 
   // Find subtitle stream
   for (unsigned i = 0; i < fmt_ctx->nb_streams; ++i) {
-    if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE) {
+    if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE && fmt_ctx->streams[i]->codecpar->codec_id == 94208) {
       subtitle_stream_index = static_cast<int>(i);
       break;
     }
@@ -217,7 +217,7 @@ unsigned int sub_get_indexes_count(AVFormatContext* fmt_ctx) {
   // Count subtitle streams
   unsigned count = 0;
   for (unsigned i = 0; i < fmt_ctx->nb_streams; ++i) {
-    if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE) {
+    if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE && fmt_ctx->streams[i]->codecpar->codec_id == 94208) {
       ++count;
     }
   }
@@ -248,7 +248,7 @@ int sub_set_from_lang(AVFormatContext* fmt_ctx, const char* lang) {
   if (!fmt_ctx || !lang) return 1;
 
   for (unsigned i = 0; i < fmt_ctx->nb_streams; ++i) {
-    if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE) {
+    if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE && fmt_ctx->streams[i]->codecpar->codec_id == 94208) {
       AVDictionaryEntry* entry = av_dict_get(fmt_ctx->streams[i]->metadata, "language", nullptr, 0);
       if (entry && strcmp(entry->value, lang) == 0) {
         return static_cast<int>(i);
@@ -452,7 +452,7 @@ int main(int argc, char **argv) {
   if(list_languages) {
     std::cout << "Languages:\n";
     for(size_t i = 0; i < avfctx->nb_streams; ++i) {
-      if (avfctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE) {
+      if (avfctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE && avfctx->streams[i]->codecpar->codec_id == 94208) {
         std::string id = sub_get_id(avfctx, static_cast<unsigned>(i));
         std::cout << i << ": " << (id.empty() ? "(no id. that's odd. may cause problems, please report if you see this)\n" : id.c_str()) << '\n';
       }
