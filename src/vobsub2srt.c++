@@ -597,7 +597,9 @@ int main(int argc, char **argv) {
 
   if (verbose) {
   int dbg_ifo = av_opt_set(spu, "ifo_palette", ifo_file.c_str(), AV_OPT_SEARCH_CHILDREN);
-  if (dbg_ifo < 0) av_log(nullptr, AV_LOG_ERROR, "ifo_palette: %s\n", av_err2str(dbg_ifo));
+  char errbuf[AV_ERROR_MAX_STRING_SIZE];
+  av_strerror(dbg_ifo, errbuf, sizeof errbuf);
+  av_log(nullptr, AV_LOG_ERROR, "ifo_palette: %s\n", errbuf);
   }
 
   // Init Tesseract
