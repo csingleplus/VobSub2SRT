@@ -168,7 +168,7 @@ AVFormatContext* media_open(const char* subname, const char*,
   if (sub_path.empty()) {
     std::cerr << "No filename specified.";
     return nullptr;
-  }
+    }
   // Append ".idx" extension only if the filename has no extension TODO: check for other media extensions
   size_t dot_pos = sub_path.find_last_of('.');
   if (dot_pos == std::string::npos) { /* if .idx exists, use it. better to use std::filesystem */
@@ -389,7 +389,7 @@ int main(int argc, char **argv) {
   std::string tess_lang_user;
   std::string blacklist;
   std::string tess_user_dir;
-  std::string tess_user_dpi = "72";
+  int tess_user_dpi = 72;
   int index = -1;
   int y_threshold = 16;
 
@@ -418,9 +418,11 @@ int main(int argc, char **argv) {
       add_option("min-width", min_width, "Minimum width in pixels to consider a subpicture for OCR. Default: 8").
       add_option("min-height", min_height, "Minimum height in pixels to consider a subpicture for OCR. Default: 8");
 
-    opts.add_unnamed(subname, "subname", "VOB, MP4, MKV, or similar file, or name of the .idx from the subtitles. Make sure the .sub file is in the same directory as the .idx");
+    //    opts.add_unnamed(subname, "subname", "VOB, MP4, MKV, or similar file, or name of the .idx from the subtitles. Make sure the .sub file is in the same directory as the .idx");
     std::cout << "VobSub2SRT version " << version << '\n';
     if(!opts.parse_cmd(argc, argv)) {
+      return 1;
+    } else {
       return 0;
     }
   }
@@ -618,10 +620,15 @@ int main(int argc, char **argv) {
     tess_api.SetVariable("tessedit_char_blacklist", "\\/|");
   }
 
-  // Set DPI to 72, or user-specified with --dpi                                                                                                               
-  tess_api.SetVariable("user_defined_dpi", tess_user_dpi.c_str());
+  // Set DPI to 72, or user-specified with --dpi
+  if (tess_user_dpi > 0) {
+    char buf[32];
+      snprintf(buf, sizeof(buf), "%d", tess_user_dpi);
+    const char* tess_dpi = buf;
+    tess_api.SetVariable("user_defined_dpi", tess_dpi);
+  }
 
-  // Attempt to improve whitespace detection (old Tesseract vars, possibly not relevant anymore)                                                               
+  // Attempt to improve whitespace detection (old Tesseract vars, possibly not relevant anymore)
   std::string tess_rej_spaces = "0";
   std::string tess_improve_thresh = "1";
   tess_api.SetVariable("tessedit_use_reject_spaces", tess_rej_spaces.c_str());
