@@ -170,6 +170,10 @@ void dump_png(const std::string &filename, unsigned counter, const char* file_la
 AVFormatContext* media_open(const char* subname, const char*,
 				int& subtitle_stream_index) {
   std::string sub_path = subname;
+  if (sub_path.empty()) {
+    std::cerr << "No filename specified. Exiting.\n";
+    return nullptr;
+  }
   // Append ".idx" extension only if the filename has no extension TODO: check for other media extensions
   size_t dot_pos = sub_path.find_last_of('.');
   if (dot_pos == std::string::npos) { /* if .idx exists, use it. better to use std::filesystem */
@@ -614,11 +618,12 @@ int main(int argc, char **argv) {
     if(!opts.parse_cmd(argc, argv)) {
       // Check opts.error; --help sets exit but not error
       if (opts.error) {
-        // Actual parsing error occurred
+	// Actual parsing error occurred
         return 1;
+      } else {
+	// Exit cleanly after showing help
+	return 0;
       }
-      // Exit cleanly after showing help
-      return 0;
     }
   }
 
