@@ -42,7 +42,7 @@ You need FFmpeg libraries, libPNG, Tesseract (minimum version 4), CMake and GCC 
 With a Debian-based distribution, you can install the dependencies with:
 
 ```bash
-sudo apt-get install libpng-dev libtiff5-dev libtesseract-dev build-essential cmake pkg-config libavformat-dev libavcodec-dev libavutil-dev
+sudo apt-get install libpng-dev libtiff5-dev libtesseract-dev build-essential cmake pkg-config libavfilter-dev libavformat-dev libavcodec-dev libavutil-dev
 ```
 
 You also need to install the Tesseract data for the languages you want to use:

@@ -19,7 +19,7 @@ jobs:
     - name: update-apt
       run: sudo apt update
     - name: install-deps
-      run: sudo apt install libavcodec-dev libavformat-dev libavutil-dev libpng-dev libtesseract-dev tesseract-ocr-eng libtiff5-dev g++ cmake pkg-config -y
+      run: sudo apt install libavcodec-dev libavfilter-dev libavformat-dev libavutil-dev libpng-dev libtesseract-dev tesseract-ocr-eng libtiff5-dev g++ cmake pkg-config -y
     - name: configure
       run: ./configure
     - name: make
