@@ -32,7 +32,7 @@ struct cmd_options {
   cmd_options &add_option(char const *name, int &val, char const *description, char short_name = '\0');
 
   cmd_options &add_unnamed(std::string &val, char const *help_name, char const *description);
-
+  mutable bool error = false;
   bool parse_cmd(int argc, char **argv) const;
 
   /// returns true if an error occurred and the program should exit

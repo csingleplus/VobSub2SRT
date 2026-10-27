@@ -1,8 +1,8 @@
 # Known Issues
 
-## IFO File Support
+## Italics and tightly-spaced fonts
 
-IFO file support is currently not functional. The program accepts the `-i` option for specifying IFO files for script compatibility, but this feature is not implemented in the current code.
+On some subtitles that have italic letters, they may not be recognized correctly and/or the spacing may be wrong. Subtitles with tightly spaced letters may also be misrecognized.
 
 ## Musical Note Recognition
 
@@ -10,4 +10,4 @@ Musical notation and symbols are not properly recognized by the OCR engine. Subt
 
 ---
 
-*Last updated: 2026-10-12*
+*Last updated: 2026-10-27*

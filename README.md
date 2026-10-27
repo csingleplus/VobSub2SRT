@@ -11,10 +11,12 @@ The quality of the OCR depends on the text in the subtitles. You can correct mis
 ### October 2026
 - All MPlayer dependencies (vobsub.c, spudec.c, mp_msg.c and headers) have been replaced with FFmpeg components
 - Now uses `avformat_open_input()`, `avcodec_decode_subtitle2()`, and `AVSubtitle` handling
+- Implemented pre-processing with Super2xSaI and unsharp (rc4).
 - Improved Tesseract integration
 - New `--env` flag to show Tesseract's data path if TESSDATA_PREFIX is set.
-- Use the `--output`, or `-o` flag to set your own filename.
-- `--ifo` flag fixed.
+- Use the `--output`, or `-o` flag to set your own filename. NOTE: I forgot to run git add on rc3 and broke options. This is now fixed in rc4.
+- `--ifo` flag fixed (rc4).
+- Segfault when using `--lang` and an undefined langcode in an .idx fixed (rc4).
 
 
 ### July 2026

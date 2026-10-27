@@ -112,6 +112,7 @@ bool cmd_options::parse_cmd(int argc, char **argv) const {
         if(argv[i][2] == '\0') {
           // "--" stops option parsing and handles only unnamed args (to allow e.g. files starting with -)
           parse_options = false;
+	  continue;
         }
         offset = 2;
       }
@@ -129,6 +130,12 @@ bool cmd_options::parse_cmd(int argc, char **argv) const {
             break;
           }
 
+          if(i+1 >= argc) {
+            cerr << "option --" << j->name << " is missing an argument\n";
+            error = exit = true;
+            return false;
+          }
+
           ++i;
 
           if(j->type == option::String) {
@@ -138,7 +145,8 @@ bool cmd_options::parse_cmd(int argc, char **argv) const {
             char *endptr;
             *j->ref.i = strtol(argv[i], &endptr, 10);
             if(*endptr != '\0') {
-              cerr << "option " << j->name << " expects a number as argument but got '" << argv[i] << "'\n";
+              cerr << "option " << j->name << "(" << j->short_name << ")" << " expects a number as argument but got '"
+		   << argv[i] << "'\n";
               exit = true;
               return false;
             }

@@ -47,7 +47,7 @@ include(CheckCXXSourceCompiles)
 include(CheckCXXSourceRuns)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "-pedantic -Wall -Wextra")
+set(CMAKE_CXX_FLAGS "-pedantic -Wall -Wextra -D__STDC_CONSTANT_MACROS")
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG -s")
 set(CMAKE_CXX_FLAGS_DEBUG "-fsanitize=address,undefined -g3 -DDEBUG")
@@ -57,6 +57,7 @@ find_package(Tesseract 4 REQUIRED)
 find_package(PNG REQUIRED)
 find_package(avutil REQUIRED)
 find_package(avcodec REQUIRED)
+find_package(avfilter REQUIRED)
 find_package(avformat REQUIRED)
 
 add_subdirectory(src)
