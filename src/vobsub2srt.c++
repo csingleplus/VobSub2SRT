@@ -802,7 +802,8 @@ int main(int argc, char **argv) {
 
   // Init Tesseract
   tesseract::TessBaseAPI tess_api;
-  if(tess_api.Init(NULL, tess_lang, tesseract::OEM_LSTM_ONLY) == -1) {
+  const char* tess_data_path = tess_user_dir.empty() ? nullptr : tess_user_dir.c_str();
+  if(tess_api.Init(tess_data_path, tess_lang, tesseract::OEM_LSTM_ONLY) == -1) {
     std::cerr << "Failed to initialize Tesseract OCR.\n";
     avcodec_free_context(&spu);
     media_close(avfctx);
