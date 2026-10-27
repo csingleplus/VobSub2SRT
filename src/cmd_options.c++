@@ -118,7 +118,8 @@ bool cmd_options::parse_cmd(int argc, char **argv) const {
       }
       if(handle_help and (strcmp(argv[i]+offset, "help") == 0 or strcmp(argv[i]+offset, "h") == 0)) {
         help(argv[0]);
-        return true;
+        exit = true;
+        return false;
       }
       bool known_option = false;
       for(std::vector<option>::const_iterator j = pimpl->options.begin(); j != pimpl->options.end(); ++j) {
@@ -157,6 +158,7 @@ bool cmd_options::parse_cmd(int argc, char **argv) const {
 
       if(not known_option) {
         cerr << "ERROR: unknown option '" << argv[i] << "'\n";
+        error = exit = true;
         help(argv[0]);
         return false;
       }
@@ -167,7 +169,7 @@ bool cmd_options::parse_cmd(int argc, char **argv) const {
     }
     else {
       help(argv[0]);
-      return false;
+      //      return false;
     }
   }
   return not exit;
@@ -196,10 +198,6 @@ for(std::vector<option>::const_iterator i = pimpl->options.begin(); i != pimpl->
 
   cerr << left << setw(32) << opt << i->description << '\n';
 }
-
-//if(handle_help) {
-  //  cerr << left << setw(32) << "  --help (-h)" << "show help information\n";
-//}
 
   for(std::vector<unnamed>::const_iterator i = pimpl->unnamed_args.begin(); i != pimpl->unnamed_args.end(); ++i) {
     cerr << " <" << i->name << '>' << "\t\t\tname of subtitle without .idx/.sub extension, or path to media file containing subtitles";
