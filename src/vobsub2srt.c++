@@ -995,10 +995,10 @@ int main(int argc, char **argv) {
   auto time_f = std::chrono::steady_clock::now();
   std::chrono::duration<double> elapsed = time_f - time_s;
   if (dump_pngfiles) {
-    std::cout << "Wrote images to '" << subname << "-count." << tess_lang << ".png.\n";
+    std::cout << "Wrote images to '" << subname << "-####." << tess_lang << ".png.'\n";
   }
   if (dump_pgmfiles) {
-    std::cout << "Wrote images to '" << subname << "-count." << tess_lang << ".pgm.\n";
+    std::cout << "Wrote images to '" << subname << "-####." << tess_lang << ".pgm.'\n";
   }
   std::cout << "Wrote subtitles to '" << srt_filename << "', " << elapsed.count() << " seconds elapsed.\n";
   
