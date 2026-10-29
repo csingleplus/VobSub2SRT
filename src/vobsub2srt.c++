@@ -685,7 +685,7 @@ int main(int argc, char **argv) {
   // Helper to check if a language code should skip conversion (placeholder/special codes)
   auto is_placeholder_lang = [](const std::string& lang) -> bool {
     // Skip placeholder and special ISO-639-3 codes that have ambiguous/misc languages
-    return lang == "unk" || lang == "mul" || lang == "mis" || lang == "zxx" ||
+    return lang == "und" || lang == "unk" || lang == "mul" || lang == "mis" || lang == "zxx" ||
            (lang.length() == 3 && lang[0] == 'q' && lang[1] >= 'a' && lang[1] <= 't'); // qaa-qtz
   };
 
