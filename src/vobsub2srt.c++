@@ -348,14 +348,16 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
       }
     }
 
-    // Filter image with super2xsai before OCR to smooth out text
+    // Pad subtitles with 8px each side, filter image with super2xsai before OCR to smooth out text, and sharpen
 
     const AVFilter* buffer = avfilter_get_by_name("buffer");
     const AVFilter* bufsink = avfilter_get_by_name("buffersink");
+    const AVFilter* pad_flt = avfilter_get_by_name("pad");
     const AVFilter* super2xsai = avfilter_get_by_name("super2xsai");
+    const AVFilter* unsharp = avfilter_get_by_name("unsharp");
 
-    if (!buffer || !bufsink || !super2xsai) {
-      std::cerr << "Failed to find required filters (buffer/buffersink/super2xsai).\n";
+    if (!buffer || !bufsink || !super2xsai || !pad_flt || !unsharp) {
+      std::cerr << "Failed to find required filters (buffer/buffersink/pad/super2xsai).\n";
       continue;
     }
 
@@ -388,13 +390,24 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
       continue;
     }
 
+    /* Pad 8px each side to help Tesseract recognition */
+
+    char pad_args[64];
+    snprintf(pad_args, sizeof(pad_args), "iw+16:ih+16:8:8:color=white");
+
+    AVFilterContext* pad_ctx = nullptr;
+    if (avfilter_graph_create_filter(&pad_ctx, pad_flt, "pad", pad_args, nullptr, flt_graph) < 0) {
+      std::cerr << "Failed to init pad filter.\n";
+      avfilter_graph_free(&flt_graph);
+      continue;
+    }
+
     /* Add unsharp filter for edge clarity */
 
     char us_args[32];
     snprintf(us_args, sizeof(us_args), "3:3:3:3");
 
     AVFilterContext* unsharp_ctx = nullptr;
-    const AVFilter* unsharp = avfilter_get_by_name("unsharp");
     if (!unsharp) {
       std::cerr << "Failed to init unsharp filter.\n";
       avfilter_graph_free(&flt_graph);
@@ -415,7 +428,7 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
     }
 
     if ((avfilter_link(bufsrc_ctx, 0, s2xs_ctx, 0) < 0 || avfilter_link(s2xs_ctx, 0, unsharp_ctx, 0) < 0 ||
-	 avfilter_link(unsharp_ctx, 0, bufsnk_ctx, 0) < 0)) {
+	 avfilter_link(unsharp_ctx, 0, pad_ctx, 0) < 0) || avfilter_link(pad_ctx, 0, bufsnk_ctx, 0)) {
       std::cerr << "Failed to link filter graph.\n";
       avfilter_graph_free(&flt_graph);
       continue;

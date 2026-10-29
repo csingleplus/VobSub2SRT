@@ -9,6 +9,7 @@ The quality of the OCR depends on the text in the subtitles. You can correct mis
 ## Recent Updates
 
 ### October 2026
+- Preprocessing added with `libavfilter` making use of the pad, super2xsai and unsharp filters, improving accuracy.
 - All MPlayer dependencies (vobsub.c, spudec.c, mp_msg.c and headers) have been replaced with FFmpeg components
 - Now uses `avformat_open_input()`, `avcodec_decode_subtitle2()`, and `AVSubtitle` handling
 - Implemented pre-processing with Super2xSaI and unsharp (rc4).
