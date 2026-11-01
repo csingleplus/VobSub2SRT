@@ -6,7 +6,9 @@ set(vobsub2srt_sources
   langcodes.h++
   langcodes.c++
   cmd_options.h++
-  cmd_options.c++)
+  cmd_options.c++
+  time.cpp
+  time.hpp)
 
 add_executable(vobsub2srt ${vobsub2srt_sources})
 if(BUILD_STATIC)

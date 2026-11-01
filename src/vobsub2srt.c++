@@ -1,5 +1,5 @@
 /*
- *  VobSub2SRT is a simple command line program to convert .idx/.sub subtitles
+ *  VobSub2SRT is a simple command line program to convert DVD subtitles
  *  into .srt text subtitles by using OCR (tesseract). See README.
  *
  *  Copyright (C) 2010-2016 Rüdiger Sonderfeld <ruediger@c-plusplus.de>
@@ -43,23 +43,24 @@ extern "C" {
 #endif
 
 // standard libs
-#include <memory>
-#include <cstdlib>
-#include <cstring>
-#include <cstdint>
-#include <climits>
-#include <chrono>
 #include <array>
-#include <iostream>
-#include <fstream>
-#include <string>
+#include <chrono>
+#include <climits>
+#include <cstdlib>
+#include <cstdint>
 #include <cstdio>
+#include <cstring>
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <string>
 #include <vector>
 
-// Language and option handling
-#include "langcodes.h++"
-#include "cmd_options.h++"
-#include "version.h++"
+// VobSub2SRT internals
+#include "langcodes.h++" // conversion of ISO639-1 to ISO639-3 language codes for Tesseract
+#include "cmd_options.h++" // option parsing
+#include "time.hpp" // conversion of PTS values to HH/MM/SS/MS
+#include "version.h++" // self-explanatory, just a couple strings.
 
 
 // Version string for display
@@ -84,20 +85,6 @@ sub_text_t::sub_text_t(uint64_t start_pts, uint64_t end_pts, std::unique_ptr<cha
  * pts (presentation time stamp) is given with a 90kHz resolution (1/90 ms).
  * srt expects a time stamp as  HH:MM:SS,MS.
  */
-std::string pts2srt(uint64_t pts) {
-  uint64_t ms = pts/90l;
-  uint32_t const h = ms / (3600u * 1000u);
-  ms -= h * 3600u * 1000u;
-  uint32_t const m = ms / (60u * 1000u);
-  ms -= m * 60u * 1000u;
-  uint32_t const s = ms / 1000u;
-  ms %= 1000u;
-
-  std::array<char, 32> buf{};
-  std::snprintf(buf.data(), buf.size(), "%02d:%02d:%02d,%03ld", h, m, s, ms);
-  return buf.data();
-}
-
 
 /** Converts image data to Netpbm PGM format */
 void dump_pgm(const std::string &filename, unsigned counter, const char* file_lang, unsigned width, unsigned height,
