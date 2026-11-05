@@ -1,0 +1,39 @@
+/*
+ *  Codec/decoder function defs
+ *
+ *  This file is part of VobSub2SRT.
+ *
+ *  Copyright (C) 2010-2016 Rüdiger Sonderfeld <ruediger@c-plusplus.de>
+ *  Copyright (C) 2026 Christopher Ogloff <chris.ogloff@gmail.com> (libav implementation)
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#pragma once
+extern "C" {
+  #include <libavcodec/avcodec.h>
+  #include <libavformat/avformat.h>
+  #include <libavutil/opt.h>
+}
+#include <string>
+
+/* container + stream discovery & libav cleanup */
+//AVFormatContext* dec_open(const char* subname, const char* ifo_file, int &stream_s);
+void dec_close(AVFormatContext* &fmt_ctx);
+unsigned int get_idx_count(AVFormatContext* fmt_ctx);
+std::string get_id(AVFormatContext* fmt_ctx, unsigned int index);
+int set_from_lang(AVFormatContext* fmt_ctx, const char* lang);
+
+/* subtitle decoder lifecycle */
+AVCodecContext* dec_open(AVFormatContext* fmt_ctx, int stream_i, const std::string &ifo_file);

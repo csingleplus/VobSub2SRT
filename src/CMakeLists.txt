@@ -8,7 +8,9 @@ set(vobsub2srt_sources
   cmd_options.h++
   cmd_options.c++
   time.cpp
-  time.hpp)
+  time.hpp
+  codec.cpp
+  codec.hpp)
 
 add_executable(vobsub2srt ${vobsub2srt_sources})
 if(BUILD_STATIC)

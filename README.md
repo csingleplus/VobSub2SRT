@@ -8,7 +8,11 @@ The quality of the OCR depends on the text in the subtitles. You can correct mis
 
 ## Recent Updates
 
-### October 2026
+### November 2026
+- Fixed behavior when invoking without an extension for `.idx/.sub` files.
+- Beginning to separate code out of main entrypoint.
+
+### October
 - Preprocessing added with `libavfilter` making use of the pad, super2xsai and unsharp filters, improving accuracy.
 - All MPlayer dependencies (vobsub.c, spudec.c, mp_msg.c and headers) have been replaced with FFmpeg components
 - Now uses `avformat_open_input()`, `avcodec_decode_subtitle2()`, and `AVSubtitle` handling
@@ -19,22 +23,6 @@ The quality of the OCR depends on the text in the subtitles. You can correct mis
 - `--ifo` flag fixed (rc4).
 - Segfault when using `--lang` and an undefined langcode in an .idx fixed (rc4).
 
-
-### July 2026
-- Added conditional libPNG header check inside vobsub2srt.c++ for compatibility with NixOS and others
-
-### June 2026
-- PNG export added
-- Image inversion added (code by [Ethan Dye](https://github.com/ecdye/VobSub2SRT))
-- Tesseract options added to improve accuracy
-
-### April/May 2026
-- Scaling of subtitles implemented
-- Memory leak fixes in vobsub.c
-
-### March 2026
-- Memory safety improvements
-- MPlayer verbosity separated from realtime text output
 
 ## Building
 

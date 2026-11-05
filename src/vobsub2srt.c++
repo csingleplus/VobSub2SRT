@@ -61,6 +61,7 @@ extern "C" {
 #include "cmd_options.h++" // option parsing
 #include "time.hpp" // conversion of PTS values to HH/MM/SS/MS
 #include "version.h++" // self-explanatory, just a couple strings.
+#include "codec.hpp" // subtitle decoder logic
 
 
 // Version string for display
@@ -87,8 +88,8 @@ sub_text_t::sub_text_t(uint64_t start_pts, uint64_t end_pts, std::unique_ptr<cha
  */
 
 /** Converts image data to Netpbm PGM format */
-void dump_pgm(const std::string &filename, unsigned counter, const char* file_lang, unsigned width, unsigned height,
-              unsigned stride, const unsigned char *image) {
+void dump_pgm(const std::string &filename, unsigned counter, const char* file_lang,
+	      unsigned width, unsigned height, unsigned stride, const unsigned char *image) {
 
   char buf[500];
   if (file_lang && strlen(file_lang) > 0) {
@@ -106,7 +107,8 @@ void dump_pgm(const std::string &filename, unsigned counter, const char* file_la
 }
 
 /** Or, to PNG */
-void dump_png(const std::string &filename, unsigned counter, const char* file_lang, unsigned width, unsigned height, unsigned stride, const unsigned char* image) {
+void dump_png(const std::string &filename, unsigned counter, const char* file_lang,
+	      unsigned width, unsigned height, unsigned stride, const unsigned char* image) {
 
   char buf[500];
   if (file_lang && strlen(file_lang) > 0) {
@@ -154,17 +156,16 @@ void dump_png(const std::string &filename, unsigned counter, const char* file_la
  * Also finds the first subtitle stream index.
  */
 
-AVFormatContext* media_open(const char* subname, const char*,
+AVFormatContext* dec_open(const char* subname, const char*,
 				int& subtitle_stream_index) {
   std::string sub_path = subname;
-  if (sub_path.empty()) {
-    std::cerr << "No filename specified. Exiting.\n";
-    return nullptr;
-  }
   // Append ".idx" extension only if the filename has no extension TODO: check for other media extensions
   size_t dot_pos = sub_path.find_last_of('.');
   if (dot_pos == std::string::npos) { /* if .idx exists, use it. better to use std::filesystem */
     sub_path += ".idx";
+  } else if (sub_path.empty()) {
+    std::cerr << "No filename specified. Exiting.\n";
+    return nullptr;
   }
 
   AVFormatContext* fmt_ctx = avformat_alloc_context();
@@ -200,15 +201,6 @@ if (subtitle_stream_index < 0 || fmt_ctx->streams[subtitle_stream_index]->codecp
  }
 
 return fmt_ctx;
-}
-
-/**
- * Close the media file.
- */
-void media_close(AVFormatContext*& fmt_ctx) {
-  if (fmt_ctx) {
-    avformat_close_input(&fmt_ctx);
-  }
 }
 
 /**
@@ -248,7 +240,7 @@ std::string sub_get_id(AVFormatContext* fmt_ctx, unsigned int index) {
  */
 int sub_set_from_lang(AVFormatContext* fmt_ctx, const char* lang) {
   if (!fmt_ctx || !lang) {
-    if (fmt_ctx) media_close(fmt_ctx);
+    if (fmt_ctx) dec_close(fmt_ctx);
     return -1;
   }
 
@@ -478,26 +470,14 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
 
 
       // Copy filtered image to a contiguous buffer for Tesseract (remove any row padding)
-      // Convert from RGB24 to grayscale since Tesseract only accepts 8-bit grayscale
-      std::vector<unsigned char> tess_buffer(out_image->width * out_image->height);
+      std::vector<unsigned char> img_buffer(out_image->width * out_image->height);
 
       int src_linesize = out_image->linesize[0];
-      int bpp = (out_image->format == AV_PIX_FMT_RGB24) ? 3 : 1;
-
+      
       for (int y = 0; y < out_image->height; ++y) {
         const unsigned char* src_row = out_image->data[0] + y * src_linesize;
-        unsigned char* dst_row = tess_buffer.data() + y * out_image->width;
-
-        if (bpp == 3) {
-          // Convert RGB to grayscale using BT.601 luminance formula
-          for (int x = 0; x < out_image->width; ++x) {
-            const unsigned char* pixel = src_row + x * 3;
-            dst_row[x] = (pixel[0] * 76 + pixel[1] * 150 + pixel[2] * 29) >> 8; // BT.601 luma
-          }
-        } else {
-          // Already grayscale
-          memcpy(dst_row, src_row, out_image->width);
-        }
+        unsigned char* dst_row = img_buffer.data() + y * out_image->width;
+	memcpy(dst_row, src_row, out_image->width);
       }
 
     // Dump image if requested (PNG or PGM format)
@@ -505,32 +485,13 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
         unsigned width = out_image->width;
         unsigned height = out_image->height;
 
-        // Convert RGB to grayscale
-        std::vector<unsigned char> imgbuf(out_image->width * out_image->height);
-        int src_linesize = out_image->linesize[0];
-        int bpp = (out_image->format == AV_PIX_FMT_RGB24) ? 3 : 1;
-
-        for (int y = 0; y < out_image->height; ++y) {
-          const unsigned char* src_row = out_image->data[0] + y * src_linesize;
-          unsigned char* dst_row = imgbuf.data() + y * out_image->width;
-
-          if (bpp == 3) {
-            for (int x = 0; x < out_image->width; ++x) {
-              const unsigned char* pixel = src_row + x * 3;
-              dst_row[x] = (pixel[0] * 76 + pixel[1] * 150 + pixel[2] * 29) >> 8;
-            }
-          } else {
-            memcpy(dst_row, src_row, out_image->width);
-          }
-        }
-
-        // Dump the grayscale buffer
+        // Dump the image buffer to sequential files
         switch (dump_format) {
         case DumpFormat::PNG:
-          dump_png(*filename_base, *counter_ptr, file_lang, width, height, width, imgbuf.data());
+          dump_png(*filename_base, *counter_ptr, file_lang, width, height, width, img_buffer.data());
           break;
         case DumpFormat::PGM:
-          dump_pgm(*filename_base, *counter_ptr, file_lang, width, height, width, imgbuf.data());
+          dump_pgm(*filename_base, *counter_ptr, file_lang, width, height, width, img_buffer.data());
           break;
         default:
           break;
@@ -543,7 +504,7 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
                 << " linesize[0]=" << out_image->linesize[0] << "\n";
       }
 
-      tess.SetImage(tess_buffer.data(), out_image->width, out_image->height, 1, out_image->width);
+      tess.SetImage(img_buffer.data(), out_image->width, out_image->height, 1, out_image->width);
       char* ocr_result = tess.GetUTF8Text();
       if (ocr_result && strlen(ocr_result) > 0) {
         result += ocr_result;
@@ -650,9 +611,9 @@ int main(int argc, char **argv) {
     std::cout << "Using Y palette threshold: " << y_threshold << "\n";
   }
 
-  // Open the subtitles using FFmpeg. This assumes DVD subtitles (dvd_subtitle codec)
+  // Open the subtitles using FFmpeg. This assumes DVD subtitles (dvdsub/dvd_subtitle codec)
   int subtitle_stream_index = -1;
-  AVFormatContext* avfctx = media_open(subname.c_str(), ifo_file.empty() ? nullptr : ifo_file.c_str(),
+  AVFormatContext* avfctx = dec_open(subname.c_str(), ifo_file.empty() ? nullptr : ifo_file.c_str(),
                                       subtitle_stream_index);
   if (!avfctx || subtitle_stream_index < 0) {
     //    std::cerr << "Couldn't open container or sub/idx VobSub files for '" << subname << "'\n";
@@ -668,14 +629,14 @@ int main(int argc, char **argv) {
         std::cout << i << ": " << (id.empty() ? "(no id. that's odd. may cause problems, please report if you see this)\n" : id.c_str()) << '\n';
       }
     }
-    media_close(avfctx);
+    dec_close(avfctx);
     return 0;
   }
 
   // Handle stream IDs and language
   if(!lang.empty() && index >= 0) {
     std::cerr << "Setting both lang and index not supported.\n";
-    media_close(avfctx);
+    dec_close(avfctx);
     return 1;
   }
 
@@ -719,7 +680,7 @@ int main(int argc, char **argv) {
       if(static_cast<unsigned>(index) >= avfctx->nb_streams) {
         std::cerr << "Index argument out of range: " << index << " ("
                   << avfctx->nb_streams << ")\n";
-	media_close(avfctx);
+	dec_close(avfctx);
         return 1;
       }
       subtitle_stream_index = index;
@@ -756,40 +717,21 @@ int main(int argc, char **argv) {
   }
 
   if (stream->codecpar->codec_id != 94208) {
-    media_close(avfctx);
+    dec_close(avfctx);
     std::cerr << "Not a supported subtitle stream. Try using the --langlist option to find one.\n";
     return 1;
   }
   
-  const AVCodec* codec = avcodec_find_decoder(stream->codecpar->codec_id);
-  if (!codec) {
-    std::cerr << "Failed to find decoder for codec ID: " << stream->codecpar->codec_id << "("
-	      << avcodec_get_name(stream->codecpar->codec_id) << ")" << "\n";
-    media_close(avfctx);
-    return 1;
-  }
-
-  AVCodecContext* spu = avcodec_alloc_context3(codec);
-  if (!spu) {
-    std::cerr << "Failed to allocate codec context\n";
-    media_close(avfctx);
-    return 1;
-  }
-
-  // Set IFO palette option if provided
+  // Notify if IFO palette is used
   if (!ifo_file.empty()) {
     std::cout << "Using IFO file for palette: " << ifo_file << "\n";
-    av_opt_set(spu->priv_data, "ifo_palette", ifo_file.c_str(), 0);
   }
 
-  // Copy codec parameters
-  avcodec_parameters_to_context(spu, stream->codecpar);
-
-  // Open the decoder
-  if (avcodec_open2(spu, codec, nullptr) < 0) {
+  // Open the subtitle decoder (implemented in codec.cpp)
+  AVCodecContext* spu = dec_open(avfctx, subtitle_stream_index, ifo_file);
+  if (!spu) {
     std::cerr << "Failed to open subtitle decoder\n";
-    avcodec_free_context(&spu);
-    media_close(avfctx);
+    dec_close(avfctx);
     return 1;
   }
 
@@ -806,7 +748,7 @@ int main(int argc, char **argv) {
   if(tess_api.Init(tess_data_path, tess_lang, tesseract::OEM_LSTM_ONLY) == -1) {
     std::cerr << "Failed to initialize Tesseract OCR.\n";
     avcodec_free_context(&spu);
-    media_close(avfctx);
+    dec_close(avfctx);
     return 1;
   }
 
@@ -935,7 +877,7 @@ int main(int argc, char **argv) {
 
     // Process the decoded subtitle with OCR and optionally dump images
     std::string text = extract_subtitle_text(&subtitle, tess_api, y_threshold,
-                                             dump_format, &subname, &img_counter, tess_lang);
+                                             dump_format, &subname, &img_counter, tess_lang, verbose);
 
     if (!text.empty()) {
       // Convert string to unique_ptr<char[]>
@@ -990,7 +932,7 @@ int main(int argc, char **argv) {
   tess_api.End();
   std::fclose(srtout);
   avcodec_free_context(&spu);
-  media_close(avfctx);
+  dec_close(avfctx);
 
   auto time_f = std::chrono::steady_clock::now();
   std::chrono::duration<double> elapsed = time_f - time_s;

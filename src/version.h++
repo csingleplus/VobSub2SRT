@@ -1,5 +1,5 @@
 /*
- *  VobSub2SRT is a simple command line program to convert .idx/.sub subtitles
+ *  VobSub2SRT is a simple command line program to convert DVD subtitles
  *  into .srt text subtitles by using OCR (tesseract). See README.
  *
  *  version.h++ Copyright (C) 2026 Christopher Ogloff <chris.ogloff@gmail.com>
@@ -20,7 +20,7 @@
 
 #ifndef _VERSION_H_
 #define _VERSION_H_
-#define _VOBSUB2SRT_VERSION_ "2.0.0-rc4"
-#define _VOBSUB2SRT_CODENAME_ "(Fireworks)"
+#define _VOBSUB2SRT_VERSION_ "2.0.0-rc5"
+#define _VOBSUB2SRT_CODENAME_ "(Out Of Hand)"
 #endif
 

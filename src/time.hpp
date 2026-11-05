@@ -1,5 +1,5 @@
 /*
- *  This file is part of vobsub2srt
+ *  This file is part of VobSub2SRT
  *
  *  Copyright (C) 2010-2016 Rüdiger Sonderfeld <ruediger@c-plusplus.de>
  *  Copyright (C) 2026 Christopher Ogloff <chris.ogloff@gmail.com> (libav implementation)
