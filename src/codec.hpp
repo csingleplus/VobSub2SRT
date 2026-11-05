@@ -29,7 +29,7 @@ extern "C" {
 #include <string>
 
 /* container + stream discovery & libav cleanup */
-//AVFormatContext* dec_open(const char* subname, const char* ifo_file, int &stream_s);
+AVFormatContext* dec_open(const char* subname, const char* ifo_file, int& subtitle_stream_index);
 void dec_close(AVFormatContext* &fmt_ctx);
 unsigned int get_idx_count(AVFormatContext* fmt_ctx);
 std::string get_id(AVFormatContext* fmt_ctx, unsigned int index);
