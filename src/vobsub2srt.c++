@@ -43,10 +43,10 @@ typedef void* spu_t;
 
 // helper struct for caching and fixing end_pts in some cases
 struct sub_text_t {
-  sub_text_t(unsigned start_pts, unsigned end_pts, char const *text)
+  sub_text_t(long start_pts, long end_pts, char const *text)
     : start_pts(start_pts), end_pts(end_pts), text(text)
   { }
-  unsigned start_pts, end_pts;
+  long start_pts, end_pts;
   char const *text;
 };
 
@@ -57,7 +57,7 @@ struct sub_text_t {
  */
 //TODO: clamp snprintf to 99h to avoid overflow from a inconsistent/malformed PTS
 std::string pts2srt(unsigned pts) {
-  unsigned ms = pts/90;
+  long ms = pts/90lu;
   unsigned const h = ms / (3600 * 1000);
   ms -= h * 3600 * 1000;
   unsigned const m = ms / (60 * 1000);
@@ -67,7 +67,7 @@ std::string pts2srt(unsigned pts) {
 
   enum { length = sizeof("HH:MM:SS,MSS") };
   char buf[length];
-  snprintf(buf, length, "%02d:%02d:%02d,%03d", h, m, s, ms);
+  snprintf(buf, length, "%02u:%02u:%02u,%03lu", h, m, s, ms);
   return std::string(buf);
 }
 
@@ -237,7 +237,7 @@ int main(int argc, char **argv) {
   void *packet;
   int timestamp; // pts100
   int len;
-  unsigned last_start_pts = 0;
+  int64_t last_start_pts = 0;
   unsigned sub_counter = 1;
   vector<sub_text_t> conv_subs;
   conv_subs.reserve(200); // TODO better estimate
@@ -302,7 +302,7 @@ int main(int argc, char **argv) {
 
   // write the file, fixing end_pts when needed
   for(unsigned i = 0; i < conv_subs.size(); ++i) {
-    if(conv_subs[i].end_pts == UINT_MAX && i+1 < conv_subs.size())
+    if(conv_subs[i].end_pts == INT64_MIN && i+1 < conv_subs.size())
       conv_subs[i].end_pts = conv_subs[i+1].start_pts;
 
     fprintf(srtout, "%u\n%s --> %s\n%s\n\n", i+1, pts2srt(conv_subs[i].start_pts).c_str(),
