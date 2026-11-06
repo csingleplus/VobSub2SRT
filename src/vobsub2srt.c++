@@ -23,11 +23,8 @@ extern "C" {
 #include <libavfilter/avfilter.h>
 #include <libavfilter/buffersrc.h>
 #include <libavfilter/buffersink.h>
-#include <libavformat/avformat.h>
-#include <libavcodec/avcodec.h>
 #include <libavutil/dict.h>
 #include <libavutil/imgutils.h>
-#include <libavutil/opt.h>
 }
 
 // Tesseract OCR
@@ -276,6 +273,7 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
     const AVFilter* pad_flt = avfilter_get_by_name("pad");
     const AVFilter* super2xsai = avfilter_get_by_name("super2xsai");
     const AVFilter* unsharp = avfilter_get_by_name("unsharp");
+    const AVFilter* shear_flt = avfilter_get_by_name("shear");
 
     if (!buffer || !bufsink || !super2xsai || !pad_flt || !unsharp) {
       std::cerr << "Failed to find required filters (buffer/buffersink/pad/super2xsai).\n";
@@ -323,6 +321,17 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
       continue;
     }
 
+    /* Try using shear to fix misidentification of certain glyphs */
+
+    AVFilterContext* shear_ctx = nullptr;
+    //    char shear_args[32];
+    //snprintf(shear_args, sizeof(shear_args), );
+    if (avfilter_graph_create_filter(&shear_ctx, shear_flt, "shear", nullptr, nullptr, flt_graph) < 0) {
+      std::cerr << "Failed to init pad filter.\n";
+      avfilter_graph_free(&flt_graph);
+      continue;
+    }
+
     /* Add unsharp filter for edge clarity */
 
     char us_args[32];
@@ -336,7 +345,7 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
     }
 
     if (avfilter_graph_create_filter(&unsharp_ctx, unsharp, "unsharp", us_args, nullptr, flt_graph) < 0) {
-      std::cerr << "Failed to create unsharp filter context.\n";
+      std::cerr << "Failed to init unsharp filter.\n";
       avfilter_graph_free(&flt_graph);
       continue;
     }
@@ -348,7 +357,7 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
       continue;
     }
 
-    if ((avfilter_link(bufsrc_ctx, 0, s2xs_ctx, 0) < 0 || avfilter_link(s2xs_ctx, 0, unsharp_ctx, 0) < 0 ||
+    if ((avfilter_link(bufsrc_ctx, 0, shear_ctx, 0) < 0 || avfilter_link(shear_ctx, 0, s2xs_ctx, 0) < 0 || avfilter_link(s2xs_ctx, 0, unsharp_ctx, 0) < 0 ||
 	 avfilter_link(unsharp_ctx, 0, pad_ctx, 0) < 0) || avfilter_link(pad_ctx, 0, bufsnk_ctx, 0)) {
       std::cerr << "Failed to link filter graph.\n";
       avfilter_graph_free(&flt_graph);
@@ -687,6 +696,7 @@ int main(int argc, char **argv) {
   // Init Tesseract
   tesseract::TessBaseAPI tess_api;
   const char* tess_data_path = tess_user_dir.empty() ? nullptr : tess_user_dir.c_str();
+  //tess_api.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
   if(tess_api.Init(tess_data_path, tess_lang, tesseract::OEM_LSTM_ONLY) == -1) {
     std::cerr << "Failed to initialize Tesseract OCR.\n";
     avcodec_free_context(&spu);
