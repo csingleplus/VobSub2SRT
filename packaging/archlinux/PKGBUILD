@@ -1,0 +1,23 @@
+# Maintainer: Chris Ogloff <chris.ogloff@gmail.com>
+pkgname=vobsub2srt
+pkgver=2.0.0rc5
+pkgrel=1
+pkgdesc="A simple command line program to convert DVD subtitles into SubRip .srt text subtitles by using OCR. It uses FFmpeg libraries for subtitle decoding and Tesseract for optical character recognition."
+arch=('x86_64' 'aarch64')
+url="https://github.com/csingleplus/VobSub2SRT"
+license=('GPL-3.0-or-later')
+depends=('ffmpeg' 'tesseract>=4.0.0')
+makedepends=('cmake' 'pkgconf')
+conflicts=('vobsub2srt-git')
+options=('!debug')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v2.0.0-rc5.tar.gz")
+sha256sums=('35c25f30787b3e27f14ab5b6fd92f650f62b0e4952db511b290182d710b671ac')
+
+build() {
+	cmake -B build -S "VobSub2SRT-2.0.0-rc5" -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=None
+	cmake --build build
+}
+
+package() {
+	DESTDIR="$pkgdir/" cmake --install build
+}
