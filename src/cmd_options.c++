@@ -200,7 +200,7 @@ for(std::vector<option>::const_iterator i = pimpl->options.begin(); i != pimpl->
 }
 
   for(std::vector<unnamed>::const_iterator i = pimpl->unnamed_args.begin(); i != pimpl->unnamed_args.end(); ++i) {
-    cerr << " <" << i->name << '>' << "\t\t\tname of subtitle without .idx/.sub extension, or path to media file containing subtitles";
+    cerr << "  <" << i->name << '>' << "\t\t\tname of subtitle with .idx extension, or path to media file containing subtitles";
   }
   cerr << "\n\n";
   exit = true;
