@@ -149,58 +149,6 @@ void dump_png(const std::string &filename, unsigned counter, const char* file_la
 }
 
 /**
- * Get subtitle stream count
- */
-unsigned int sub_get_indexes_count(AVFormatContext* fmt_ctx) {
-  if (!fmt_ctx) return 0;
-  // Count subtitle streams
-  unsigned count = 0;
-  for (unsigned i = 0; i < fmt_ctx->nb_streams; ++i) {
-    if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE && fmt_ctx->streams[i]->codecpar->codec_id == 94208) {
-      ++count;
-    }
-  }
-  return count;
-}
-
-/**
- * Get subtitle ID/language for a given index.
- * Returns empty string if not available.
- */
-std::string sub_get_id(AVFormatContext* fmt_ctx, unsigned int index) {
-  if (!fmt_ctx || index >= fmt_ctx->nb_streams)
-    return "Invalid subtitle index.";
-
-  AVStream* stream = fmt_ctx->streams[index];
-  if (stream->metadata && av_dict_get(stream->metadata, "language", nullptr, 0)) {
-    return av_dict_get(stream->metadata, "language", nullptr, 0)->value;
-  }
-
-  return "No language identified. May cause unexpected behavior. Try setting --tesseract-lang";
-}
-
-/**
- * Set subtitle stream from language code.
- * Returns 0 on success, -1 if not found.
- */
-int sub_set_from_lang(AVFormatContext* fmt_ctx, const char* lang) {
-  if (!fmt_ctx || !lang) {
-    if (fmt_ctx) dec_close(fmt_ctx);
-    return -1;
-  }
-
-  for (unsigned i = 0; i < fmt_ctx->nb_streams; ++i) {
-    if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE && fmt_ctx->streams[i]->codecpar->codec_id == 94208) {
-      AVDictionaryEntry* entry = av_dict_get(fmt_ctx->streams[i]->metadata, "language", nullptr, 0);
-      if (entry && strcmp(entry->value, lang) == 0) {
-        return static_cast<int>(i);
-      }
-    }
-  }
-  return -1;
-}
-
-/**
  * Extract subtitle image data from AVSubtitle, optionally dump images, then run OCR.
  *
  * Convert to grayscale and invert so text is dark on light background
@@ -266,14 +214,14 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
       }
     }
 
-    // Pad subtitles with 8px each side, filter image with super2xsai before OCR to smooth out text, and sharpen
+    // Pad subtitles with 8px each side, filter image with
+    // super2xsai and unsharp before OCR to clarify text
 
     const AVFilter* buffer = avfilter_get_by_name("buffer");
     const AVFilter* bufsink = avfilter_get_by_name("buffersink");
     const AVFilter* pad_flt = avfilter_get_by_name("pad");
     const AVFilter* super2xsai = avfilter_get_by_name("super2xsai");
     const AVFilter* unsharp = avfilter_get_by_name("unsharp");
-    const AVFilter* shear_flt = avfilter_get_by_name("shear");
 
     if (!buffer || !bufsink || !super2xsai || !pad_flt || !unsharp) {
       std::cerr << "Failed to find required filters (buffer/buffersink/pad/super2xsai).\n";
@@ -321,17 +269,6 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
       continue;
     }
 
-    /* Try using shear to fix misidentification of certain glyphs */
-
-    AVFilterContext* shear_ctx = nullptr;
-    //    char shear_args[32];
-    //snprintf(shear_args, sizeof(shear_args), );
-    if (avfilter_graph_create_filter(&shear_ctx, shear_flt, "shear", nullptr, nullptr, flt_graph) < 0) {
-      std::cerr << "Failed to init pad filter.\n";
-      avfilter_graph_free(&flt_graph);
-      continue;
-    }
-
     /* Add unsharp filter for edge clarity */
 
     char us_args[32];
@@ -357,8 +294,8 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
       continue;
     }
 
-    if ((avfilter_link(bufsrc_ctx, 0, shear_ctx, 0) < 0 || avfilter_link(shear_ctx, 0, s2xs_ctx, 0) < 0 || avfilter_link(s2xs_ctx, 0, unsharp_ctx, 0) < 0 ||
-	 avfilter_link(unsharp_ctx, 0, pad_ctx, 0) < 0) || avfilter_link(pad_ctx, 0, bufsnk_ctx, 0)) {
+    if ((avfilter_link(bufsrc_ctx, 0, pad_ctx, 0) < 0 || avfilter_link(pad_ctx, 0, s2xs_ctx, 0) < 0 ||
+	 avfilter_link(s2xs_ctx, 0, unsharp_ctx, 0) < 0) || avfilter_link(unsharp_ctx, 0, bufsnk_ctx, 0)) {
       std::cerr << "Failed to link filter graph.\n";
       avfilter_graph_free(&flt_graph);
       continue;
@@ -576,7 +513,7 @@ int main(int argc, char **argv) {
     std::cout << "Languages:\n";
     for(size_t i = 0; i < avfctx->nb_streams; ++i) {
       if (avfctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE && avfctx->streams[i]->codecpar->codec_id == 94208) {
-        std::string id = sub_get_id(avfctx, static_cast<unsigned>(i));
+        std::string id = get_id(avfctx, static_cast<unsigned>(i));
         std::cout << i << ": " << (id.empty() ? "(no id. that's odd. may cause problems, please report if you see this)\n" : id.c_str()) << '\n';
       }
     }
@@ -605,7 +542,7 @@ int main(int argc, char **argv) {
   bool placeholder_lang_used = false;
 
   if(!lang.empty()) {
-    int stream_idx = sub_set_from_lang(avfctx, lang.c_str());
+    int stream_idx = set_from_lang(avfctx, lang.c_str());
     if (stream_idx < 0) {
       std::cerr << "No matching language for '" << lang << "' found! (Trying to use default)\n";
     } else {
@@ -638,7 +575,7 @@ int main(int argc, char **argv) {
     }
 
     if(subtitle_stream_index >= 0) {
-      std::string lang1 = sub_get_id(avfctx, static_cast<unsigned>(subtitle_stream_index));
+      std::string lang1 = get_id(avfctx, static_cast<unsigned>(subtitle_stream_index));
       if(!lang1.empty() && tess_lang_user.empty()) {
         // If the language code is already 3 characters and not a placeholder, use it directly.
         if(lang1.length() == 3 && !is_placeholder_lang(lang1)) {
@@ -686,23 +623,18 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (verbose) {
-  int dbg_ifo = av_opt_set(spu, "ifo_palette", ifo_file.c_str(), AV_OPT_SEARCH_CHILDREN);
-  char errbuf[AV_ERROR_MAX_STRING_SIZE];
-  av_strerror(dbg_ifo, errbuf, sizeof errbuf);
-  av_log(nullptr, AV_LOG_ERROR, "ifo_palette: %s\n", errbuf);
-  }
-
   // Init Tesseract
   tesseract::TessBaseAPI tess_api;
   const char* tess_data_path = tess_user_dir.empty() ? nullptr : tess_user_dir.c_str();
-  //tess_api.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
   if(tess_api.Init(tess_data_path, tess_lang, tesseract::OEM_LSTM_ONLY) == -1) {
     std::cerr << "Failed to initialize Tesseract OCR.\n";
     avcodec_free_context(&spu);
     dec_close(avfctx);
     return 1;
   }
+
+  // Set page segmentation mode to PSM_SINGLE_BLOCK (6)
+  tess_api.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
 
   // Set blacklist if not empty, otherwise strip the most common OCR failures                                                                                  
   if(!blacklist.empty()) {
