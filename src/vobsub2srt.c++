@@ -386,9 +386,20 @@ int main(int argc, char **argv) {
     // Convert from stream timebase to standard SRT format (90kHz)
     uint64_t start_pts_90k = static_cast<uint64_t>(av_rescale_q(pts_val, tb, AVRational{1, 90000}));
 
-    // DVD subtitles don't provide accurate duration per packet (packet->duration is always 0)
-    // Use end_display_time from the dvdsub decoder.
-    uint64_t end_pts_90k = start_pts_90k + (subtitle.end_display_time*90);
+    // DVD subtitles don't provide accurate duration per packet (packet->duration is always 0).
+    // Use end_display_time from the dvdsub decoder; a value of 0 means "no explicit end time",
+    // so mark it with UINT64_MAX and let the write-out pass derive one from the next subtitle.
+    uint64_t end_pts_90k = UINT64_MAX;
+    if (subtitle.end_display_time > 0 && subtitle.end_display_time < UINT32_MAX) {
+      // sanity: reject durations that would overflow or produce garbage timing
+      const int64_t max_end_ticks = static_cast<int64_t>(UINT32_MAX - start_pts_90k);
+      if (static_cast<uint64_t>(subtitle.end_display_time * 90) <= static_cast<uint64_t>(max_end_ticks)) {
+        end_pts_90k = start_pts_90k + subtitle.end_display_time * 90;
+      } else if (verbose) {
+        std::cerr << "WARNING: invalid end_display_time=" << subtitle.end_display_time
+                  << " for subtitle #" << sub_counter << ", using next start time.\n";
+      }
+    }
 
     // Track last PTS to detect duplicates (in stream timebase units)
     if (pts_val == last_start_pts && pts_val != 0) {
@@ -416,7 +427,11 @@ int main(int argc, char **argv) {
       if (show) {
         std::cout << "Subtitle " << sub_counter << ": " << text;
 	if (verbose) {
-	  std::cerr << '\n' << "timing= " << pts2srt(start_pts_90k) << " --> " << pts2srt(end_pts_90k) << '\n';
+	  // end_pts_90k may still be the UINT64_MAX sentinel here ("no explicit end time");
+	  // it gets derived from the next subtitle's start in the write-out pass below.
+	  const std::string timing = pts2srt(start_pts_90k) + " --> " +
+	    (end_pts_90k == UINT64_MAX ? "(unset, will use next start)" : pts2srt(end_pts_90k));
+	  std::cerr << '\n' << "timing= " << timing << '\n';
 	}
       }
       if (verbose) {
