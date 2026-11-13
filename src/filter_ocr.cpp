@@ -173,9 +173,8 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
     const AVFilter* bufsink = avfilter_get_by_name("buffersink");
     const AVFilter* pad_flt = avfilter_get_by_name("pad");
     const AVFilter* super2xsai = avfilter_get_by_name("super2xsai");
-    const AVFilter* unsharp = avfilter_get_by_name("unsharp");
 
-    if (!buffer || !bufsink || !super2xsai || !pad_flt || !unsharp) {
+    if (!buffer || !bufsink || !super2xsai || !pad_flt) { // this seems redundant and/or flawed
       std::cerr << "Failed to find required filters (buffer/buffersink/pad/super2xsai).\n";
       continue;
     }
@@ -221,24 +220,6 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
       continue;
     }
 
-    /* Add unsharp filter for edge clarity */
-
-    char us_args[32];
-    snprintf(us_args, sizeof(us_args), "3:3:3:3");
-
-    AVFilterContext* unsharp_ctx = nullptr;
-    if (!unsharp) {
-      std::cerr << "Failed to init unsharp filter.\n";
-      avfilter_graph_free(&flt_graph);
-      continue;
-    }
-
-    if (avfilter_graph_create_filter(&unsharp_ctx, unsharp, "unsharp", us_args, nullptr, flt_graph) < 0) {
-      std::cerr << "Failed to init unsharp filter.\n";
-      avfilter_graph_free(&flt_graph);
-      continue;
-    }
-
     /* Send filtered image to output context */
 
     AVFilterContext* bufsnk_ctx = nullptr;
@@ -249,7 +230,7 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
     }
 
     if ((avfilter_link(bufsrc_ctx, 0, pad_ctx, 0) < 0 || avfilter_link(pad_ctx, 0, s2xs_ctx, 0) < 0 ||
-	 avfilter_link(s2xs_ctx, 0, unsharp_ctx, 0) < 0) || avfilter_link(unsharp_ctx, 0, bufsnk_ctx, 0)) {
+	 avfilter_link(s2xs_ctx, 0, bufsnk_ctx, 0) < 0)) {
       std::cerr << "Failed to link filter graph.\n";
       avfilter_graph_free(&flt_graph);
       continue;
@@ -271,7 +252,7 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
 
     in_frame->width = rect->w;
     in_frame->height = rect->h;
-    in_frame->linesize[0] = rect->linesize[0];
+    in_frame->linesize[0] = rect->w;
     in_frame->format = AV_PIX_FMT_GRAY8;
 
     if (av_frame_get_buffer(in_frame, 0) < 0) {
@@ -310,16 +291,27 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
         continue;
       }
 
-
       // Copy filtered image to a contiguous buffer for Tesseract (remove any row padding)
+      // Convert from RGB24 to grayscale since Tesseract only accepts 8-bit grayscale
       std::vector<unsigned char> img_buffer(out_image->width * out_image->height);
 
       int src_linesize = out_image->linesize[0];
+      int bpp = (out_image->format == AV_PIX_FMT_RGB24) ? 3 : 1;
       
       for (int y = 0; y < out_image->height; ++y) {
         const unsigned char* src_row = out_image->data[0] + y * src_linesize;
         unsigned char* dst_row = img_buffer.data() + y * out_image->width;
-	memcpy(dst_row, src_row, out_image->width);
+
+	if (bpp == 3) {
+          // Convert RGB to grayscale using BT.601 luminance formula
+          for (int x = 0; x < out_image->width; ++x) {
+            const unsigned char* pixel = src_row + x * 3;
+            dst_row[x] = (pixel[0] * 76 + pixel[1] * 150 + pixel[2] * 29) >> 8; // BT.601 luma
+          }
+    	} else {
+          // Already grayscale
+	  memcpy(dst_row, src_row, out_image->width);
+	}
       }
 
     // Dump image if requested (PNG or PGM format)
