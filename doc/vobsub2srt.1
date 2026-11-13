@@ -1,4 +1,4 @@
-.TH vobsub2srt 2.0.0-rc3 "21 Oct 2026"
+.TH vobsub2srt 2.0.0-rc6 "12 Nov 2026"
 .SH NAME
 vobsub2srt \- Converts DVD bitmap subtitles (.idx/.sub or directly from a FFmpeg-compatible file) into .srt subtitles using Tesseract OCR and libavcodec et. al.
 .SH SYNOPSIS
@@ -14,22 +14,22 @@ Note: VOB files will possibly only work on discs without encryption.
 .SH OPTIONS
 .TP
 \fIFILENAME\fR
-File name of the subtitles, either the .idx file with or without the file extension, or a container (VOB, MP4, MKV, etc) with DVD subtitles. The .srt subtitles are written to a file called \fIFILENAME\fR.srt.
+File name of the subtitles, either the .idx file with or without the file extension, or a container (VOB, MP4, MKV, etc) with DVD subtitles. The .srt subtitles are written to a file called \fIFILENAME.LANG\fR.srt.
 .TP
 \fB\-\-dump\-pgm\fR
-Extract the subtitles as NetPBM PGM images (format \fIFILENAME\fR-\fINUMBER\fR.pgm in PGM format). (Obsolete)
+Extract the subtitles as NetPBM PGM images (format \fIFILENAME.LANG\fR-\fINUMBER\fR.pgm in PGM format). (Obsolete)
 .TP
 \fB\-\-dump\-png\fR
 Extract the subtitles to sequential PNG files.
 .TP
 \fB\-\-show\fR
-Print text output to terminal (stdout).
+Print text output to terminal (to stdout).
 .TP
 \fB\-\-output, \-o\fR
 Output subtitles to specified filename.
 .TP
 \fB\-\-verbose\fR
-Print verbose information about the subtitle decoding process (stderr).
+Print verbose information about the subtitle decoding process (to stderr).
 .TP
 \fB\-\-lang\fR \fIlanguage\fR
 Select the language of the subtitle (two-letter ISO 639-1 code, e.g. en for English or de for German, or three-letter ISO 639-3 code).
@@ -40,17 +40,17 @@ List languages and exit.
 .TP
 \fB\-\-index\fR \fIindex\fR
 The index of the subtitle to convert.  Use this instead \fI--lang\fR if there are several streams with the same language.
-Combining \fI--lang\fR and \fI--index\fR does not work!
+Combining \fI--lang\fR and \fI--index\fR does not work! Usage of \fI--index\fR combined with Tesseract language with \fI--tesseract-lang\fR, e.g. \fI--index 3 --tesseract-lang spa\fR is more reliable.
 .TP
 \fB\-\-ifo\fR \fIifo-file\fR
 To use a specific IFO file for the palette (useful when no OCR happens).
 .TP
 \fB\-\-tesseract-lang\fR \fIlanguage\fR
 Set the language to be used by Tesseract.  This is auto detected in .idx files and normally does not need to be changed.
-If however you need special language settings (e.g., deu-frak, chi_sim, chi_tra) or are decoding subtitles from a video file, use this option for the moment.
+If however you need special language settings (e.g., deu-frak, chi_sim, chi_tra), or to recognize multiple languages in one set of subtitles, add them together as such: spa+eng.
 .TP
 \fB\-\-tesseract-data\fR \fIpath\fR
-Set path to Tesseract data. (e.g. /usr/share/tessdata_best, otherwise auto-detect standard Tesseract data)
+Set path to Tesseract data. (e.g. where your Tesseract \fItraineddata\fR files are, otherwise auto-detect standard Tesseract data).
 .TP
 \fB\-\-blacklist\fR \fIblacklist\fR
 Blacklist characters for OCR (e.g. |\\/`_~<>). Default set to |\/
@@ -65,17 +65,25 @@ Minimum width in pixels to consider a subpicture for OCR (Default: 8).
 Minimum height in pixels to consider a subpicture for OCR (Default: 8).
 .SH EXAMPLES
 .nf
-  $ \fBvobsub2srt \-\-show foobar\fR; $ \fBvobsub2srt foobar.mkvfR; $ \fBvobsub2srt foobar.idx\fR
+  $ \fBvobsub2srt foobar.mkvfR; $ \fBvobsub2srt foobar.idx\fR
 .fi
 Prints the subtitles as they are passed through OCR.\fR
 .nf
-  $ \fBvobsub2srt \-\-lang en foobar\fR
+  $ \fBvobsub2srt \-\-lang en foobar.mkv\fR
 .fi
 Converts the English language subtitles from the media (VOB, MP4, MKV etc) or VobSub files \fIfoobar.idx\fR/\fIfoobar.sub\fR to srt subtitles in \fIfoobar.srt\fR.
 .nf
   $ \fBvobsub2srt \-\-lang zh \-\-tesseract-lang chi_sim foobar\fR
 .fi
 Converts the chinese language subtitles using simplified chinese (chi_sim) characters.
+.nf
+  $ \fBvobsub2srt \-\-tesseract-lang deu+eng foobar\fR
+.fi
+Converts subtitles that have both German and English dialogue in them.
+.nf
+  $ \fBvobsub2srt \-\-dump-png foobar.mkv\fR
+.fi
+Extracts individual subtitles to PNG files. Useful to compare to the SRT output.
 
 .SH HOMEPAGE
 For more information see \fIhttps://github.com/csingleplus/VobSub2SRT\fR.

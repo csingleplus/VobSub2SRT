@@ -44,8 +44,7 @@ AVFormatContext* dec_open(const char* subname, const char*,
   // Open the subtitle file directly
   int ret = avformat_open_input(&fmt_ctx, subname, nullptr, nullptr);
   if (ret < 0) {
-    std::cerr << "Error opening subtitle file: " << subname << "\n"
-	      << "File not found. Please specify an absolute path, e.g. /home/user/file.vob.\n";
+    std::cerr << "Error opening subtitle file: " << subname << ". File not found.\n";
     avformat_free_context(fmt_ctx);
     return nullptr;
   }
@@ -137,17 +136,4 @@ int set_from_lang(AVFormatContext* fmt_ctx, const char* lang) {
     }
   }
   return -1;
-}
-
-// Get subtitle stream count
-unsigned int get_idx_count(AVFormatContext* fmt_ctx) {
-  if (!fmt_ctx) return 0;
-  // Count subtitle streams
-  unsigned count = 0;
-  for (unsigned i = 0; i < fmt_ctx->nb_streams; ++i) {
-    if (fmt_ctx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE && fmt_ctx->streams[i]->codecpar->codec_id == 94208) {
-      ++count;
-    }
-  }
-  return count;
 }

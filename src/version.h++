@@ -20,7 +20,7 @@
 
 #ifndef _VERSION_H_
 #define _VERSION_H_
-#define _VOBSUB2SRT_VERSION_ "2.0.0-rc5"
-#define _VOBSUB2SRT_CODENAME_ "(Out Of Hand)"
+#define _VOBSUB2SRT_VERSION_ "2.0.0-rc6"
+#define _VOBSUB2SRT_CODENAME_ "(An Inch An Hour)"
 #endif
 

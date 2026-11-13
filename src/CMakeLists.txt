@@ -7,7 +7,9 @@ set(vobsub2srt_sources
   time.cpp
   time.hpp
   codec.cpp
-  codec.hpp)
+  codec.hpp
+  filter_ocr.cpp
+  filter_ocr.hpp)
 
 add_executable(vobsub2srt ${vobsub2srt_sources})
 if(BUILD_STATIC)
