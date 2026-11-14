@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
   std::string tess_user_dir;
   int tess_user_dpi = 72;
   int index = -1;
-  int y_threshold = 128;
+  int y_threshold = 16;
 
   auto time_s = std::chrono::steady_clock::now(); // Start runtime counter
   av_log_set_level(AV_LOG_WARNING); // Set libav warning level.
@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
       add_option("tesseract-data", tess_user_dir, "Path to Tesseract data (e.g. you have tessdata_best traineddata files in a custom directory).").
       add_option("dpi", tess_user_dpi, "Set DPI for Tesseract OCR. Default: 72").
       add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\" to avoid common misreads).").
-      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (0-255). Default: 128").
+      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (0-255). Default: 16").
       add_option("min-width", min_width, "Minimum width in pixels to consider a subpicture for OCR. Default: 8").
       add_option("min-height", min_height, "Minimum height in pixels to consider a subpicture for OCR. Default: 8");
 
@@ -235,7 +235,6 @@ int main(int argc, char **argv) {
         }
       }
     }
-    
   }
   char const *tess_lang = tess_lang_str.c_str();
 
@@ -371,16 +370,15 @@ int main(int argc, char **argv) {
     // Extract timing information from packet PTS
     AVRational tb = stream->time_base;
     int64_t pts_val = 0;
-    
     if (packet->pts != AV_NOPTS_VALUE) {
       // Copy packet->pts for our own usage
       pts_val = packet->pts;
     } else {
       // Last resort: sequential timing based on stream's actual timebase
       std::cerr << "Warning: PTS for subtitle #" << sub_counter 
-                << " is " << packet->pts << ", using default 1 second interval with timebase " << tb.den << "/" << tb.num << "\n";
+                << " is " << packet->pts << ", using default 1 second interval with timebase " << tb.num << "/" << tb.den << "\n";
       // Add ~1 second worth of ticks in stream's timebase units (e.g., 90k for MPEG, 25 or 30 for others)
-      pts_val = last_start_pts + (tb.den / tb.num);  
+      pts_val = last_start_pts + (tb.num / tb.den);
     }
 
     // Convert from stream timebase to standard SRT format (90kHz)

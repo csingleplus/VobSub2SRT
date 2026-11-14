@@ -96,6 +96,7 @@ AVCodecContext* dec_open(AVFormatContext* fmt_ctx, int stream_i, const std::stri
     avcodec_free_context(&spu);
     return nullptr;
   }
+  spu->pkt_timebase = stream->time_base;
   return spu;
 }
 
