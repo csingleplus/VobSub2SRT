@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
   std::string tess_user_dir;
   int tess_user_dpi = 72;
   int index = -1;
-  int y_threshold = 16;
+  int y_threshold = 128;
 
   auto time_s = std::chrono::steady_clock::now(); // Start runtime counter
   av_log_set_level(AV_LOG_WARNING); // Set libav warning level.
@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
       add_option("tesseract-data", tess_user_dir, "Path to Tesseract data (e.g. you have tessdata_best traineddata files in a custom directory).").
       add_option("dpi", tess_user_dpi, "Set DPI for Tesseract OCR. Default: 72").
       add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\" to avoid common misreads).").
-      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (0-255). Default: 16").
+      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (0-255). Default: 128").
       add_option("min-width", min_width, "Minimum width in pixels to consider a subpicture for OCR. Default: 8").
       add_option("min-height", min_height, "Minimum height in pixels to consider a subpicture for OCR. Default: 8");
 
@@ -146,7 +146,7 @@ int main(int argc, char **argv) {
   AVFormatContext* avfctx = dec_open(subname.c_str(), ifo_file.empty() ? nullptr : ifo_file.c_str(),
                                       subtitle_stream_index);
   if (!avfctx || subtitle_stream_index < 0) {
-    //    std::cerr << "Couldn't open container or sub/idx VobSub files for '" << subname << "'\n";
+    std::cerr << "Couldn't open container or sub/idx VobSub files for '" << subname << "'\n";
     return 1;
   }
 

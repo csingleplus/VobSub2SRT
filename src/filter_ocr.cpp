@@ -157,8 +157,7 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
         // DVD subtitles typically have light text on dark background,
         // so we invert: below threshold becomes light (background),
         // above threshold becomes dark (text).
-        int threshold = y_threshold;
-        if (pixvalue < threshold) {
+        if (pixvalue < y_threshold) {
           image[y * rect->w + x] = 255;
         } else {
           image[y * rect->w + x] = 0;
