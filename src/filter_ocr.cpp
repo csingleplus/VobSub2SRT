@@ -6,6 +6,8 @@
  *  Copyright (C) 2010-2016 Rüdiger Sonderfeld <ruediger@c-plusplus.de>
  *  Copyright (C) 2026 Christopher Ogloff <chris.ogloff@gmail.com> (libav implementation)
  *
+ *  Some info about DVD subpictures gathered from http://mpucoder.com/DVD/index.html
+ *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
@@ -130,8 +132,8 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
 
     // Pre-compute luminance for all palette entries
     std::array<int, 256> palette_luma;
+    const unsigned char* palette = has_palette ? rect->data[1] : nullptr;
     if (has_palette) {
-      const unsigned char* palette = rect->data[1];
       for (int i = 0; i < 256; ++i) {
         int r = palette[i * 4];     // R
         int g = palette[i * 4 + 1]; // G
@@ -139,18 +141,70 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
         // Compute luminance using BT.601 coefficients
         palette_luma[i] = (r * 299 + g * 587 + b * 114) / 1000;
       }
+      if (verbose) {
+        // DVD subpicture palettes define four entries (per SET_COLOR / spec):
+        // 0 = background, 1 = pattern (foreground), 2 = emphasis 1, 3 = emphasis 2
+        // The A byte is the contrast value (0x0 = transparent, 0xF = opaque).
+        static const char* names[4] = {"background", "pattern", "emphasis 1", "emphasis 2"};
+        for (int i = 0; i < 4; ++i) {
+          std::cerr << "[DEBUG] palette[" << i << "] (" << names[i] << ") rgb=("
+                    << static_cast<int>(palette[i * 4]) << ","
+                    << static_cast<int>(palette[i * 4 + 1]) << ","
+                    << static_cast<int>(palette[i * 4 + 2]) << ") alpha="
+                    << static_cast<int>(palette[i * 4 + 3]) << " luma="
+                    << palette_luma[i] << '\n';
+        }
+      }
     } else {
       // Fallback: all zeros (black)
       palette_luma.fill(0);
     }
 
+    if (verbose) {
+      // Geometry diagnostic: distinguishes glyph missing from the image
+      // (decode/bounding-box clip) from OCR dropping the first char at the margin.
+      std::cerr << "[DEBUG] rect x=" << rect->x << " y=" << rect->y
+                << " w=" << rect->w << " h=" << rect->h
+                << " linesize[0]=" << rect->linesize[0] << '\n';
+
+      // Histogram of the four palette indices actually present in the bitmap.
+      unsigned long hist[4] = {0, 0, 0, 0};
+      for (int y = 0; y < rect->h; ++y) {
+        const unsigned char* row = rect->data[0] + y * rect->linesize[0];
+        for (int x = 0; x < rect->w; ++x) {
+          unsigned char idx = row[x];
+          if (idx < 4) hist[idx]++;
+        }
+      }
+      std::cerr << "[DEBUG] index histogram: bg=" << hist[0]
+                << " pattern=" << hist[1]
+                << " emph1=" << hist[2]
+                << " emph2=" << hist[3] << '\n';
+
+      // Leftmost column (from the left edge) that contains an opaque pixel.
+      // 0 = content touches the left edge (e.g. not enough margin for Tesseract to reliably see the first letter).
+      // large = a gap exists (geometry/decode suspect).
+      int leftmost_opaque_col = -1;
+      if (has_palette) {
+        for (int x = 0; x < rect->w; ++x) {
+          bool col_opaque = false;
+          for (int y = 0; y < rect->h && !col_opaque; ++y) {
+            unsigned char idx = rect->data[0][y * rect->linesize[0] + x];
+            if (palette[idx * 4 + 3] > 0) col_opaque = true;
+          }
+          if (col_opaque) { leftmost_opaque_col = x; break; }
+        }
+      }
+      std::cerr << "[DEBUG] leftmost opaque column = " << leftmost_opaque_col << '\n';
+    }
+
     for (int y = 0; y < rect->h; ++y) {
       for (int x = 0; x < rect->w; ++x) {
         unsigned char pixvalue = 0;
-          // 8-bit indexed color: each byte is a palette index
-          unsigned char idx = rect->data[0][y * rect->linesize[0] + x];
-          // Look up luminance from pre-computed palette
-          pixvalue = palette_luma[idx];
+	// 8-bit indexed color: each byte is a palette index
+	unsigned char idx = rect->data[0][y * rect->linesize[0] + x];
+	// Look up luminance from pre-computed palette
+	pixvalue = palette_luma[idx];
 
         // Apply Y threshold for better OCR:
         // We want dark text on light background for Tesseract.
@@ -166,7 +220,7 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
     }
 
     // Pad subtitles with 8px each side, filter image with
-    // super2xsai and unsharp before OCR to clarify text
+    // super2xsai before OCR to clarify text
 
     const AVFilter* buffer = avfilter_get_by_name("buffer");
     const AVFilter* bufsink = avfilter_get_by_name("buffersink");
@@ -333,7 +387,8 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
       }
 
       if (verbose) {
-      std::cerr << "[DEBUG] Filter output: " << out_image->width << "x" << out_image->height << " format=" << out_image->format
+      std::cerr << "[DEBUG] Filter output: " << out_image->width
+		<< "x" << out_image->height << " format=" << out_image->format
                 << " linesize[0]=" << out_image->linesize[0] << "\n";
       }
 
@@ -345,7 +400,7 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
       delete[] ocr_result;
     } else {
       std::cerr << "Failed to get filtered frame from output buffer: " << ret << "\n";
-      // Fallback to unfiltered image
+      // Fallback to unfiltered image (this code path needs further testing.)
       tess.SetImage(image.get(), rect->w, rect->h, 1, rect->w);
       char* ocr_result = tess.GetUTF8Text();
       if (ocr_result && strlen(ocr_result) > 0) {

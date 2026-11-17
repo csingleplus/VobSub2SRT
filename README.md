@@ -94,6 +94,8 @@ vobsub2srt Filename.extension
 
 with `Filename` being the file name of the subtitle files (specify the `.idx` file if converting `.idx/.sub` files), or point to the media container your subtitles are in (e.g. a VOB, MP4, MKV, etc). VobSub2SRT writes the subtitles to a file called `Filename.langcode.srt`, or if using the `--output` argument, a specified filename. You can see the subtitles as they are decoded with `--show`.
 
+Should text look garbled or quasi-coherent, try using the accompanying title's IFO file with the `--ifo` argument, and if needed (for light gray and light-colored subtitles) adjust the `--y-threshold` argument starting with a value of 128 if the appearance of text in image dumps look more like thick blobs instead of fine lines. This can be in part due to missing palette entries that the IFO file provides.
+
 If a subtitle file contains more than one language you can use the `--lang` parameter to set the correct language (Use `--langlist` to find the languages in the file). For some languages you might need to set the Tesseract language yourself (e.g., chi_tra/chi_sim for traditional or simplified Chinese characters). Subtitles without a language code in their metadata default to the `eng` language code, otherwise it is automatically detected. You can use `--tesseract-lang` to override this. Multilingual subtitles may be decoded by combining langcodes as such: `--tesseract-lang eng+fra`.
 
 If you want to dump the subtitles as images (e.g. to check for correct OCR) you can use the `--dump-png` or `--dump-pgm` flag. This writes sequentially-named images such as `Filename.eng-0001.png` with the number incrementing by subtitle count.

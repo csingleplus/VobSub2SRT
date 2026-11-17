@@ -88,19 +88,19 @@ int main(int argc, char **argv) {
       add_option("output", outfile, "Set output filename to use, otherwise set to <subname>.<lang>.srt", 'o').
       add_option("env", env, "Show environment variables used and exit.", 'e').
       add_option("nofilter", nofilter, "Disable default Tesseract character blacklist (\"|\\/\")").
-      add_option("show", show, "Show subtitles being written.").
-      add_option("dump-pgm", dump_pgmfiles, "Save subtitles as sequential NetPBM image files (<subname>-0001.pgm etc.).").
+      add_option("show", show, "Show subtitles being written.", 's').
+      add_option("dump-pgm", dump_pgmfiles, "Save subtitles as sequential NetPBM image files (<subname>-0001.pgm etc.)").
       add_option("dump-png", dump_pngfiles, "Above, but in PNG format.").
       add_option("verbose", verbose, "Debug prints to stderr.").
       add_option("ifo", ifo_file, "IFO file for DVD subtitle palette extraction (e.g., VIDEO_TS.IFO/VTS_01_0.IFO)").
       add_option("lang", lang, "Language to select", 'l').
       add_option("langlist", list_languages, "List languages and exit").
       add_option("index", index, "Subtitle index", 'i').
-      add_option("tesseract-lang", tess_lang_user, "Desired Tesseract language (e.g. eng, deu, fra, etc.)").
+      add_option("tesseract-lang", tess_lang_user, "ISO-639-3 language code for Tesseract if not detected (e.g. eng, deu, fra, etc.)").
       add_option("tesseract-data", tess_user_dir, "Path to Tesseract data (e.g. you have tessdata_best traineddata files in a custom directory).").
       add_option("dpi", tess_user_dpi, "Set DPI for Tesseract OCR. Default: 72").
-      add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\" to avoid common misreads).").
-      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (0-255). Default: 16").
+      add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\" to avoid common misreads).", 'b').
+      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (0-255). Default: 16", 'y').
       add_option("min-width", min_width, "Minimum width in pixels to consider a subpicture for OCR. Default: 8").
       add_option("min-height", min_height, "Minimum height in pixels to consider a subpicture for OCR. Default: 8");
 
@@ -117,8 +117,6 @@ int main(int argc, char **argv) {
       }
     }
   }
-
-  // 
 
   // Display relevant environment variable status
   if (env) {
@@ -367,48 +365,16 @@ int main(int argc, char **argv) {
       continue;
     }
 
-    // Extract timing information from packet PTS
-    AVRational tb = stream->time_base;
-    int64_t pts_val = 0;
-    if (packet->pts != AV_NOPTS_VALUE) {
-      // Copy packet->pts for our own usage
-      pts_val = packet->pts;
-    } else {
-      // Last resort: sequential timing based on stream's actual timebase
-      std::cerr << "Warning: PTS for subtitle #" << sub_counter 
-                << " is " << packet->pts << ", using default 1 second interval with timebase " << tb.num << "/" << tb.den << "\n";
-      // Add ~1 second worth of ticks in stream's timebase units (e.g., 90k for MPEG, 25 or 30 for others)
-      pts_val = last_start_pts + (tb.num / tb.den);
-    }
-
-    // Convert from stream timebase to standard SRT format (90kHz)
-    uint64_t start_pts_90k = static_cast<uint64_t>(av_rescale_q(pts_val, tb, AVRational{1, 90000}));
-
-    // DVD subtitles don't provide accurate duration per packet (packet->duration is always 0).
-    // Use end_display_time from the dvdsub decoder; a value of 0 means "no explicit end time",
-    // so mark it with UINT64_MAX and let the write-out pass derive one from the next subtitle.
-    uint64_t end_pts_90k = UINT64_MAX;
-    if (subtitle.end_display_time > 0 && subtitle.end_display_time < UINT32_MAX) {
-      // sanity: reject durations that would overflow or produce garbage timing
-      const int64_t max_end_ticks = static_cast<int64_t>(UINT32_MAX - start_pts_90k);
-      if (static_cast<uint64_t>(subtitle.end_display_time * 90) <= static_cast<uint64_t>(max_end_ticks)) {
-        end_pts_90k = start_pts_90k + subtitle.end_display_time * 90;
-      } else if (verbose) {
-        std::cerr << "WARNING: invalid end_display_time=" << subtitle.end_display_time
-                  << " for subtitle #" << sub_counter << ", using next start time.\n";
-      }
-    }
-
-    // Track last PTS to detect duplicates (in stream timebase units)
-    if (pts_val == last_start_pts && pts_val != 0) {
-      if (verbose) {
-	std::cerr << "WARNING: Invalid last start PTS " << pts_val << ". Skipping.";
-	}
+    // Derive start/end timing (usually 90kHz) from the packet PTS + decoder end time.
+    // get_subtitle_timing() also performs duplicate-PTS detection and tracks
+    // last_start_pts internally. it reports a skip when this is a duplicate.
+    sub_timing_t sub_timing = get_subtitle_timing(packet, stream, subtitle,
+						  last_start_pts, sub_counter, verbose);
+    if (sub_timing.skip) {
+      std::cerr << "WARNING: Duplicate subtitle/invalid PTS. Skipping.";
       av_packet_unref(packet);
       continue;
     }
-
-    last_start_pts = static_cast<unsigned>(pts_val);
 
     // Process the decoded subtitle with OCR and optionally dump images
     std::string text = extract_subtitle_text(&subtitle, tess_api, y_threshold,
@@ -420,22 +386,22 @@ int main(int argc, char **argv) {
       std::unique_ptr<char[]> text_ptr(new char[text_len + 1]);
       memcpy(text_ptr.get(), text.c_str(), text_len + 1);
 
-      conv_subs.emplace_back(sub_text_t(start_pts_90k, end_pts_90k, std::move(text_ptr)));
+      conv_subs.emplace_back(sub_text_t(sub_timing.start_pts_90k, sub_timing.end_pts_90k, std::move(text_ptr)));
 
       if (show) {
         std::cout << "Subtitle " << sub_counter << ": " << text;
 	if (verbose) {
-	  // end_pts_90k may still be the UINT64_MAX sentinel here ("no explicit end time");
+	  // If end_pts is UINT64_MAX sentinel here (no explicit end time)
 	  // it gets derived from the next subtitle's start in the write-out pass below.
-	  const std::string timing = pts2srt(start_pts_90k) + " --> " +
-	    (end_pts_90k == UINT64_MAX ? "(unset, will use next start)" : pts2srt(end_pts_90k));
+	  const std::string timing = pts2srt(sub_timing.start_pts_90k) + " --> " +
+	    (sub_timing.end_pts_90k == UINT64_MAX ? "(unset, will use next start)" : pts2srt(sub_timing.end_pts_90k));
 	  std::cerr << '\n' << "timing= " << timing << '\n';
 	}
       }
       if (verbose) {
 	std::cerr << "\nduration=" << packet->duration << " position= " << packet->pos << " start_display_time= "
-		  << subtitle.start_display_time << " end_display_time= " << subtitle.end_display_time << " pts_ms= "
-		  << pts_val << '\n';
+		  << subtitle.start_display_time << " end_display_time= " << subtitle.end_display_time << " pts= "
+		  << packet->pts << '\n';
       }
 
     // Increment amount of decoded subtitles
