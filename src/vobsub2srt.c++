@@ -67,7 +67,6 @@ int main(int argc, char **argv) {
   bool verbose = false;
   bool env = false;
   bool list_languages = false;
-  bool nofilter = false;
   std::string ifo_file;
   std::string subname;
   std::string lang;
@@ -87,7 +86,6 @@ int main(int argc, char **argv) {
     opts.
       add_option("output", outfile, "Set output filename to use, otherwise set to <subname>.<lang>.srt", 'o').
       add_option("env", env, "Show environment variables used and exit.", 'e').
-      add_option("nofilter", nofilter, "Disable default Tesseract character blacklist (\"|\\/\")").
       add_option("show", show, "Show subtitles being written.", 's').
       add_option("dump-pgm", dump_pgmfiles, "Save subtitles as sequential NetPBM image files (<subname>-0001.pgm etc.)").
       add_option("dump-png", dump_pngfiles, "Above, but in PNG format.").
@@ -99,8 +97,8 @@ int main(int argc, char **argv) {
       add_option("tesseract-lang", tess_lang_user, "ISO-639-3 language code for Tesseract if not detected (e.g. eng, deu, fra, etc.)").
       add_option("tesseract-data", tess_user_dir, "Path to Tesseract data (e.g. you have tessdata_best traineddata files in a custom directory).").
       add_option("dpi", tess_user_dpi, "Set DPI for Tesseract OCR. Default: 72").
-      add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\" to avoid common misreads).", 'b').
-      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (0-255). Default: 16", 'y').
+      add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\" to avoid common misreads).\n\t\t\t\tNote that VobSub2SRT automatically blacklists \"\\/|\". Use --blacklist \"\" to disable it.", 'b').
+      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (0-255). Default: 16.\n\t\t\t\tYou may want to set this to 128 for problematic subtitles and/or use the title's IFO file.", 'y').
       add_option("min-width", min_width, "Minimum width in pixels to consider a subpicture for OCR. Default: 8").
       add_option("min-height", min_height, "Minimum height in pixels to consider a subpicture for OCR. Default: 8");
 
@@ -278,7 +276,7 @@ int main(int argc, char **argv) {
   // Set blacklist if not empty, otherwise strip the most common OCR failures                                                                                  
   if(!blacklist.empty()) {
     tess_api.SetVariable("tessedit_char_blacklist", blacklist.c_str());
-  } else if (!nofilter && blacklist.empty()) {
+  } else if (blacklist.empty()) {
     tess_api.SetVariable("tessedit_char_blacklist", "\\/|");
   }
 
