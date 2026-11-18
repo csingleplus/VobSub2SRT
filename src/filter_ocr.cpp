@@ -23,7 +23,7 @@
  */
 
 #include "filter_ocr.hpp"
-#include "time.hpp" // pts2srt + get_sub_timing (used by decode_and_ocr_subtitles)
+#include "time.hpp" // pts2srt + get_sub_timing (used by get_sub_text)
 
 extern "C" {
 #include <libavfilter/avfilter.h>
@@ -113,10 +113,37 @@ static void dump_png(const std::string &filename, unsigned counter, const char* 
   std::fclose(pngfile);
 }
 
+/** Startup check that all required libavfilter filters exist. */
+int check_required_filters() {
+  static const char* filter_list[4] = {"buffer", "buffersink", "pad", "super2xsai"};
+  int missing = 0;
+  for (const char* name : filter_list) {
+    if (!avfilter_get_by_name(name)) {
+      std::cerr << "libavfilter: required filter '" << name << "' not found.\n";
+      missing++;
+    }
+  }
+  if (missing) {
+    std::cerr << "Your libavfilter build is broken or mismatched with your headers.\n";
+    return -1;
+  }
+  return 0;
+}
+
 std::string get_sub_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess, int y_threshold,
 			 DumpFormat dump_format, const std::string* filename_base, unsigned* counter_ptr,
 			 const char* file_lang, bool verbose) {
   std::string result;
+
+  /* Required filters are validated once at startup by check_required_filters()
+     (called from main). These lookups therefore succeed here; the guard below
+     is only a defensive safety net against a NULL deref. */
+  const AVFilter* buffer     = avfilter_get_by_name("buffer");
+  const AVFilter* bufsink    = avfilter_get_by_name("buffersink");
+  const AVFilter* pad_flt    = avfilter_get_by_name("pad");
+  const AVFilter* super2xsai = avfilter_get_by_name("super2xsai");
+  if (!buffer || !bufsink || !pad_flt || !super2xsai)
+    return result; // defensive: already validated at startup, should not happen
 
   for (unsigned i = 0; i < subtitle->num_rects; ++i) {
     AVSubtitleRect* rect = subtitle->rects[i];
@@ -198,21 +225,22 @@ std::string get_sub_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess, int
       std::cerr << "[DEBUG] leftmost opaque column = " << leftmost_opaque_col << '\n';
     }
 
-    // Binarize by palette structure rather than a global absolute Y cut.
-    // DVD subpicture palettes have four entries: 0=background, 1=pattern
-    // (main text), 2/3=emphasis. Instead of guessing a per-title luma
-    // threshold, classify each palette entry as text or background:
-    //   - transparent entries (alpha == 0) are always background;
-    //   - index 0 is the background by DVD convention (unless another
-    //     opaque index is overwhelmingly more frequent, >5x);
-    //   - the remaining opaque entries are text/emphasis.
-    // This inverts both light-text-on-dark and dark-text-on-light
-    // subtitles to black-text-on-white automatically.
-    //
-    // A user-supplied --y-threshold (anything other than the default 16)
-    // is an explicit override: it forces the legacy absolute-luma cut for
-    // palette-coded subtitles as well, for titles where the automatic
-    // classification still misbehaves.
+    /* Binarize by palette structure rather than a global absolute Y cut.
+       DVD subpicture palettes have four entries: 0=background, 1=pattern
+       (main text), 2/3=emphasis. Instead of guessing a per-title luma
+       threshold, classify each palette entry as text or background:
+         - transparent entries (alpha == 0) are always background;
+         - index 0 is the background by DVD convention (unless another
+           opaque index is overwhelmingly more frequent, >5x);
+         - the remaining opaque entries are text/emphasis.
+       This inverts both light-text-on-dark and dark-text-on-light
+       subtitles to black-text-on-white automatically. */
+
+    /* A user-supplied --y-threshold (anything other than the default 16)
+       is an explicit override: it forces the legacy absolute-luma cut for
+       palette-coded subtitles as well, for titles where the automatic
+       classification still misbehaves. */
+
     const bool y_override = (y_threshold != 16);
     bool idx_is_text[4] = {false, false, false, false};
     if (has_palette && !y_override) {
@@ -224,10 +252,11 @@ std::string get_sub_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess, int
           if (idx < 4 && palette[idx * 4 + 3] > 0) count[idx]++;
         }
       }
-      // Prefer index 0 as background (standard DVD subpicture convention).
-      // Only override if another opaque index is overwhelmingly more
-      // frequent (>5x), which guards against dense text dominating a small
-      // background box and flipping the polarity.
+      /* Prefer index 0 as background (standard DVD subpicture convention).
+         Only override if another opaque index is overwhelmingly more
+         frequent (>5x), which guards against dense text dominating a small
+         background box and flipping the polarity. */
+
       int bg_idx = 0;
       for (int i = 1; i < 4; ++i) {
         if (count[i] > 5 * count[0]) { bg_idx = i; break; }
@@ -236,8 +265,8 @@ std::string get_sub_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess, int
         if (i != bg_idx && palette[i * 4 + 3] > 0 && count[i] > 0)
           idx_is_text[i] = true;
       }
-      // Safety net: if nothing was classified as text, fall back to the
-      // standard convention (index 0 background, indices 1..3 text).
+      /* Safety net: if nothing was classified as text, fall back to the
+         standard convention (index 0 background, indices 1..3 text). */
       if (!idx_is_text[1] && !idx_is_text[2] && !idx_is_text[3]) {
         for (int i = 1; i < 4; ++i)
           if (palette[i * 4 + 3] > 0) idx_is_text[i] = true;
@@ -250,10 +279,10 @@ std::string get_sub_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess, int
         unsigned char idx = row[x];
         bool is_bg;
         if (!has_palette || (y_override && idx < 4)) {
-          // No palette data, or an explicit --y-threshold override:
-          // legacy absolute-luma threshold. Transparent entries have no
-          // real color, so they always map to background regardless of
-          // their stored RGB values.
+          /* No palette data, or an explicit --y-threshold override:
+             legacy absolute-luma threshold. Transparent entries have no
+             real color, so they always map to background regardless of
+             their stored RGB values. */
           if (has_palette && idx < 4 && palette[idx * 4 + 3] == 0) {
             is_bg = true;
           } else {
@@ -270,18 +299,8 @@ std::string get_sub_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess, int
       }
     }
 
-    // Pad subtitles with 8px each side, filter image with
-    // super2xsai before OCR to clarify text
-
-    const AVFilter* buffer = avfilter_get_by_name("buffer");
-    const AVFilter* bufsink = avfilter_get_by_name("buffersink");
-    const AVFilter* pad_flt = avfilter_get_by_name("pad");
-    const AVFilter* super2xsai = avfilter_get_by_name("super2xsai");
-
-    if (!buffer || !bufsink || !super2xsai || !pad_flt) { // this seems redundant and/or flawed
-      std::cerr << "Failed to find required filters (buffer/buffersink/pad/super2xsai).\n";
-      continue;
-    }
+    /* Pad subtitles with 8px each side, filter image with
+       super2xsai before OCR to clarify text */
 
     if (verbose) {
       std::cerr << "[DEBUG] input linesize: " << rect->linesize[0] << '\n';
@@ -395,8 +414,8 @@ std::string get_sub_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess, int
         continue;
       }
 
-      // Copy filtered image to a contiguous buffer for Tesseract (remove any row padding)
-      // Convert from RGB24 to grayscale since Tesseract only accepts 8-bit grayscale
+      /* Copy filtered image to a contiguous buffer for Tesseract (remove any row padding)
+         Convert from RGB24 to grayscale since Tesseract only accepts 8-bit grayscale */
       std::vector<unsigned char> img_buffer(out_image->width * out_image->height);
 
       int src_linesize = out_image->linesize[0];

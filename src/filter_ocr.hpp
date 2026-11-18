@@ -39,7 +39,8 @@ enum class DumpFormat { NONE, PNG, PGM };
 extern int min_width;
 extern int min_height;
 
-/** A decoded subtitle ready for SRT write-out.
+/**
+ *  A decoded subtitle ready for SRT write-out.
  *  start_pts/end_pts are in 90kHz units; end_pts is UINT64_MAX when the
  *  decoder gave no explicit end time (if so, it is set by time.cpp to the next
  *  subtitle's start time). */
@@ -64,8 +65,16 @@ std::string get_sub_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess,
 			      const char* file_lang = nullptr, bool verbose = false);
 
 /**
+ * Check that all libavfilter filters required (buffer/buffersink/pad/super2xsai)
+ * are present. avfilter_get_by_name() fails silently (returns NULL, no log message).
+ * Returns 0 on success; on failure prints which filter(s) are missing and
+ * returns -1.
+ */
+int check_required_filters();
+
+/**
  * Read every subtitle packet from the container, decode it, derive its timing,
- * and run OCR (with optional image dumping). Returns the decoded subtitles in
+ * and OCR with optional image dumping. Returns the decoded subtitles in
  * order.
  */
 std::vector<sub_text_t> process_subtitles(AVFormatContext* avfctx, int subtitle_stream_index,

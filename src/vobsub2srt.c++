@@ -104,6 +104,12 @@ int main(int argc, char **argv) {
     }
   }
 
+  /* Verify required libavfilter filters exist before doing any work.
+     These are built-in filters, so this should never fail on a standard build. */
+  if (check_required_filters() != 0) {
+    return 1;
+  }
+
   // Display relevant environment variable status
   if (env) {
     const char* tesspfx = std::getenv("TESSDATA_PREFIX");
@@ -310,9 +316,9 @@ int main(int argc, char **argv) {
     dump_format = DumpFormat::PGM;
   }
 
-  // Decode every subtitle packet, derive its timing, and run OCR (with any
-  // requested image dumping). The write-out pass below fixes end_pts where the
-  // decoder did not provide an explicit end time.
+  /* Decode every subtitle packet, derive its timing, and run OCR (with any
+     requested image dumping). The write-out pass below fixes end_pts where the
+     decoder did not provide an explicit end time. */
   std::vector<sub_text_t> conv_subs = process_subtitles(avfctx, subtitle_stream_index,
 							spu, stream, tess_api, y_threshold,
 							dump_format, subname, tess_lang, show, verbose);
