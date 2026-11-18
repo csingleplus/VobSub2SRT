@@ -44,6 +44,5 @@ struct sub_timing_t {
  * last_start_pts tracks the previous subtitle's start (stream timebase units)
  * for duplicate detection; it is updated only when the subtitle is not skipped.
  */
-sub_timing_t get_subtitle_timing(const AVPacket* packet, const AVStream* stream,
-                                     const AVSubtitle& subtitle, unsigned& last_start_pts,
-                                     int sub_counter, bool verbose);
+sub_timing_t get_sub_timing(const AVPacket* packet, const AVStream* stream, const AVSubtitle& subtitle,
+			    unsigned& last_start_pts, int sub_counter, bool verbose);

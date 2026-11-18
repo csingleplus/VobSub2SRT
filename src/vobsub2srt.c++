@@ -47,18 +47,6 @@
 const char* version = _VOBSUB2SRT_VERSION_;
 const char* codename = _VOBSUB2SRT_CODENAME_;
 
-// helper struct for caching and fixing end_pts in some cases
-struct sub_text_t {
-  uint64_t start_pts;
-  uint64_t end_pts;
-  std::unique_ptr<char[]> text;
-
-  sub_text_t(uint64_t start_pts, uint64_t end_pts, std::unique_ptr<char[]> text);
-};
-
-sub_text_t::sub_text_t(uint64_t start_pts, uint64_t end_pts, std::unique_ptr<char[]> text)
-  : start_pts(start_pts), end_pts(end_pts), text(std::move(text)) {}
-
 
 int main(int argc, char **argv) {
   bool show = false;
@@ -98,7 +86,7 @@ int main(int argc, char **argv) {
       add_option("tesseract-data", tess_user_dir, "Path to Tesseract data (e.g. you have tessdata_best traineddata files in a custom directory).").
       add_option("dpi", tess_user_dpi, "Set DPI for Tesseract OCR. Default: 72").
       add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\" to avoid common misreads).\n\t\t\t\tNote that VobSub2SRT automatically blacklists \"\\/|\". Use --blacklist \"\" to disable it.", 'b').
-      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors treated as black (0-255). Default: 16.\n\t\t\t\tYou may want to set this to 128 for problematic subtitles and/or use the title's IFO file.", 'y').
+      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors are treated as black (0-255). Default: 16.\n\t\t\t\tSetting this to any other value forces luma-threshold binarization instead of automatic palette-based classification. Useful for titles where auto-detection misbehaves. You may also want the title's IFO file passed with this argument.", 'y').
       add_option("min-width", min_width, "Minimum width in pixels to consider a subpicture for OCR. Default: 8").
       add_option("min-height", min_height, "Minimum height in pixels to consider a subpicture for OCR. Default: 8");
 
@@ -140,7 +128,7 @@ int main(int argc, char **argv) {
   // Open the subtitles using FFmpeg. This assumes DVD subtitles (dvdsub/dvd_subtitle codec)
   int subtitle_stream_index = -1;
   AVFormatContext* avfctx = dec_open(subname.c_str(), ifo_file.empty() ? nullptr : ifo_file.c_str(),
-                                      subtitle_stream_index);
+				     subtitle_stream_index);
   if (!avfctx || subtitle_stream_index < 0) {
     std::cerr << "Couldn't open container or sub/idx VobSub files for '" << subname << "'\n";
     return 1;
@@ -173,7 +161,7 @@ int main(int argc, char **argv) {
   auto is_placeholder_lang = [](const std::string& lang) -> bool {
     // Skip placeholder and special ISO-639-3 codes that have ambiguous/misc languages
     return lang == "und" || lang == "unk" || lang == "mul" || lang == "mis" || lang == "zxx" ||
-           (lang.length() == 3 && lang[0] == 'q' && lang[1] >= 'a' && lang[1] <= 't'); // qaa-qtz
+      (lang.length() == 3 && lang[0] == 'q' && lang[1] >= 'a' && lang[1] <= 't'); // qaa-qtz
   };
 
   // Track if encountering a placeholder language code
@@ -237,8 +225,8 @@ int main(int argc, char **argv) {
   // Get codec context for the subtitle stream
   AVStream* stream = avfctx->streams[subtitle_stream_index];
   if (verbose) {
-  std::cerr << "Subtitle stream codec_id=" << stream->codecpar->codec_id 
-            << " (" << avcodec_get_name(stream->codecpar->codec_id) << ")\n";
+    std::cerr << "Subtitle stream codec_id=" << stream->codecpar->codec_id 
+	      << " (" << avcodec_get_name(stream->codecpar->codec_id) << ")\n";
   }
 
   if (stream->codecpar->codec_id != 94208) {
@@ -246,7 +234,7 @@ int main(int argc, char **argv) {
     std::cerr << "Not a supported subtitle stream. Try using the --langlist option to find one.\n";
     return 1;
   }
-  
+
   // Notify if IFO palette is used
   if (!ifo_file.empty()) {
     std::cout << "Using IFO file for palette: " << ifo_file << "\n";
@@ -273,7 +261,7 @@ int main(int argc, char **argv) {
   // Set page segmentation mode to PSM_SINGLE_BLOCK (6)
   tess_api.SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
 
-  // Set blacklist if not empty, otherwise strip the most common OCR failures                                                                                  
+  // Set blacklist if not empty, otherwise strip the most common OCR failures                                                   
   if(!blacklist.empty()) {
     tess_api.SetVariable("tessedit_char_blacklist", blacklist.c_str());
   } else if (blacklist.empty()) {
@@ -283,7 +271,7 @@ int main(int argc, char **argv) {
   // Set DPI to 72, or user-specified with --dpi
   if (tess_user_dpi > 0) {
     char buf[32];
-      snprintf(buf, sizeof(buf), "%d", tess_user_dpi);
+    snprintf(buf, sizeof(buf), "%d", tess_user_dpi);
     const char* tess_dpi = buf;
     tess_api.SetVariable("user_defined_dpi", tess_dpi);
   }
@@ -314,19 +302,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // Check for valid packet to read subtitles
-  AVPacket* packet = av_packet_alloc();
-  if (!packet) {
-    std::cerr << "Failed to allocate packet\n";
-    return 1;
-  }
-
-  int sub_counter = 1;
-  unsigned img_counter = 1;
-  unsigned last_start_pts = 0;
-  std::vector<sub_text_t> conv_subs;
-  conv_subs.reserve(255);
-
   // Determine dump format based on user options
   DumpFormat dump_format = DumpFormat::NONE;
   if (dump_pngfiles) {
@@ -335,84 +310,12 @@ int main(int argc, char **argv) {
     dump_format = DumpFormat::PGM;
   }
 
-  while (av_read_frame(avfctx, packet) >= 0) {
-
-    // Check if this is a subtitle packet
-    if (packet->stream_index != subtitle_stream_index) {
-      av_packet_unref(packet);
-      continue;
-    }
-
-    // Decode the subtitle packet
-    int got_sub = 0;
-    AVSubtitle subtitle;
-    memset(&subtitle, 0, sizeof(subtitle));
-    int ret = avcodec_decode_subtitle2(spu, &subtitle, &got_sub, packet);
-    
-    if (ret < 0) {
-      std::cerr << "Decode error: " << ret << "\n";
-      av_packet_unref(packet);
-      continue;
-    }
-
-    if (!got_sub) {
-      if (verbose) {
-      std::cerr << "No subtitle. Skipping.\n";
-      }
-      av_packet_unref(packet);
-      continue;
-    }
-
-    // Derive start/end timing (usually 90kHz) from the packet PTS + decoder end time.
-    // get_subtitle_timing() also performs duplicate-PTS detection and tracks
-    // last_start_pts internally. it reports a skip when this is a duplicate.
-    sub_timing_t sub_timing = get_subtitle_timing(packet, stream, subtitle,
-						  last_start_pts, sub_counter, verbose);
-    if (sub_timing.skip) {
-      std::cerr << "WARNING: Duplicate subtitle/invalid PTS. Skipping.";
-      av_packet_unref(packet);
-      continue;
-    }
-
-    // Process the decoded subtitle with OCR and optionally dump images
-    std::string text = extract_subtitle_text(&subtitle, tess_api, y_threshold,
-                                             dump_format, &subname, &img_counter, tess_lang, verbose);
-
-    if (!text.empty()) {
-      // Convert string to unique_ptr<char[]>
-      size_t text_len = text.length();
-      std::unique_ptr<char[]> text_ptr(new char[text_len + 1]);
-      memcpy(text_ptr.get(), text.c_str(), text_len + 1);
-
-      conv_subs.emplace_back(sub_text_t(sub_timing.start_pts_90k, sub_timing.end_pts_90k, std::move(text_ptr)));
-
-      if (show) {
-        std::cout << "Subtitle " << sub_counter << ": " << text;
-	if (verbose) {
-	  // If end_pts is UINT64_MAX sentinel here (no explicit end time)
-	  // it gets derived from the next subtitle's start in the write-out pass below.
-	  const std::string timing = pts2srt(sub_timing.start_pts_90k) + " --> " +
-	    (sub_timing.end_pts_90k == UINT64_MAX ? "(unset, will use next start)" : pts2srt(sub_timing.end_pts_90k));
-	  std::cerr << '\n' << "timing= " << timing << '\n';
-	}
-      }
-      if (verbose) {
-	std::cerr << "\nduration=" << packet->duration << " position= " << packet->pos << " start_display_time= "
-		  << subtitle.start_display_time << " end_display_time= " << subtitle.end_display_time << " pts= "
-		  << packet->pts << '\n';
-      }
-
-    // Increment amount of decoded subtitles
-      sub_counter++;
-    }
-
-    // Clean up for next iteration
-    avsubtitle_free(&subtitle);
-    av_packet_unref(packet);
-  }
-
-  // Free the packet
-  av_packet_free(&packet);
+  // Decode every subtitle packet, derive its timing, and run OCR (with any
+  // requested image dumping). The write-out pass below fixes end_pts where the
+  // decoder did not provide an explicit end time.
+  std::vector<sub_text_t> conv_subs = process_subtitles(avfctx, subtitle_stream_index,
+							spu, stream, tess_api, y_threshold,
+							dump_format, subname, tess_lang, show, verbose);
 
   // Write the file, fixing end_pts when needed
   for(unsigned i = 0; i < conv_subs.size(); ++i) {
@@ -446,7 +349,7 @@ int main(int argc, char **argv) {
     std::cout << "Wrote images to '" << subname << "-####." << tess_lang << ".pgm.'\n";
   }
   std::cout << "Wrote subtitles to '" << srt_filename << "', " << elapsed.count() << " seconds elapsed.\n";
-  
+
   // Warn if a placeholder language code was used, and instruct the user
   if(placeholder_lang_used) {
     std::cerr << "\nWARNING: The subtitle track had a placeholder/unknown language code.\n"

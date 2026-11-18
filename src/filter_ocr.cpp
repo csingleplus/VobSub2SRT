@@ -23,6 +23,7 @@
  */
 
 #include "filter_ocr.hpp"
+#include "time.hpp" // pts2srt + get_sub_timing (used by decode_and_ocr_subtitles)
 
 extern "C" {
 #include <libavfilter/avfilter.h>
@@ -112,10 +113,9 @@ static void dump_png(const std::string &filename, unsigned counter, const char* 
   std::fclose(pngfile);
 }
 
-std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess,
-                                  int y_threshold, DumpFormat dump_format,
-                                  const std::string* filename_base, unsigned* counter_ptr,
-                                  const char* file_lang, bool verbose) {
+std::string get_sub_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess, int y_threshold,
+			 DumpFormat dump_format, const std::string* filename_base, unsigned* counter_ptr,
+			 const char* file_lang, bool verbose) {
   std::string result;
 
   for (unsigned i = 0; i < subtitle->num_rects; ++i) {
@@ -142,9 +142,9 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
         palette_luma[i] = (r * 299 + g * 587 + b * 114) / 1000;
       }
       if (verbose) {
-        // DVD subpicture palettes define four entries (per SET_COLOR / spec):
-        // 0 = background, 1 = pattern (foreground), 2 = emphasis 1, 3 = emphasis 2
-        // The A byte is the contrast value (0x0 = transparent, 0xF = opaque).
+        /* DVD subpicture palettes define four entries (per SET_COLOR / spec):
+           0 = background, 1 = pattern (foreground), 2 = emphasis 1, 3 = emphasis 2
+	   The A byte is the contrast value (0x0 = transparent, 0xF = opaque). */
         static const char* names[4] = {"background", "pattern", "emphasis 1", "emphasis 2"};
         for (int i = 0; i < 4; ++i) {
           std::cerr << "[DEBUG] palette[" << i << "] (" << names[i] << ") rgb=("
@@ -161,8 +161,8 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
     }
 
     if (verbose) {
-      // Geometry diagnostic: distinguishes glyph missing from the image
-      // (decode/bounding-box clip) from OCR dropping the first char at the margin.
+      /* Geometry diagnostic: distinguishes glyph missing from the image
+         (decode/bounding-box clip) from OCR dropping the first char at the margin. */
       std::cerr << "[DEBUG] rect x=" << rect->x << " y=" << rect->y
                 << " w=" << rect->w << " h=" << rect->h
                 << " linesize[0]=" << rect->linesize[0] << '\n';
@@ -181,9 +181,9 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
                 << " emph1=" << hist[2]
                 << " emph2=" << hist[3] << '\n';
 
-      // Leftmost column (from the left edge) that contains an opaque pixel.
-      // 0 = content touches the left edge (e.g. not enough margin for Tesseract to reliably see the first letter).
-      // large = a gap exists (geometry/decode suspect).
+      /* Leftmost column (from the left edge) that contains an opaque pixel.
+         0 = content touches the left edge (e.g. not enough margin for Tesseract to reliably see the first letter).
+         large = a gap exists (geometry/decode suspect). */
       int leftmost_opaque_col = -1;
       if (has_palette) {
         for (int x = 0; x < rect->w; ++x) {
@@ -198,24 +198,75 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
       std::cerr << "[DEBUG] leftmost opaque column = " << leftmost_opaque_col << '\n';
     }
 
-    for (int y = 0; y < rect->h; ++y) {
-      for (int x = 0; x < rect->w; ++x) {
-        unsigned char pixvalue = 0;
-	// 8-bit indexed color: each byte is a palette index
-	unsigned char idx = rect->data[0][y * rect->linesize[0] + x];
-	// Look up luminance from pre-computed palette
-	pixvalue = palette_luma[idx];
-
-        // Apply Y threshold for better OCR:
-        // We want dark text on light background for Tesseract.
-        // DVD subtitles typically have light text on dark background,
-        // so we invert: below threshold becomes light (background),
-        // above threshold becomes dark (text).
-        if (pixvalue < y_threshold) {
-          image[y * rect->w + x] = 255;
-        } else {
-          image[y * rect->w + x] = 0;
+    // Binarize by palette structure rather than a global absolute Y cut.
+    // DVD subpicture palettes have four entries: 0=background, 1=pattern
+    // (main text), 2/3=emphasis. Instead of guessing a per-title luma
+    // threshold, classify each palette entry as text or background:
+    //   - transparent entries (alpha == 0) are always background;
+    //   - index 0 is the background by DVD convention (unless another
+    //     opaque index is overwhelmingly more frequent, >5x);
+    //   - the remaining opaque entries are text/emphasis.
+    // This inverts both light-text-on-dark and dark-text-on-light
+    // subtitles to black-text-on-white automatically.
+    //
+    // A user-supplied --y-threshold (anything other than the default 16)
+    // is an explicit override: it forces the legacy absolute-luma cut for
+    // palette-coded subtitles as well, for titles where the automatic
+    // classification still misbehaves.
+    const bool y_override = (y_threshold != 16);
+    bool idx_is_text[4] = {false, false, false, false};
+    if (has_palette && !y_override) {
+      unsigned long count[4] = {0, 0, 0, 0};
+      for (int y = 0; y < rect->h; ++y) {
+        const unsigned char* row = rect->data[0] + y * rect->linesize[0];
+        for (int x = 0; x < rect->w; ++x) {
+          unsigned char idx = row[x];
+          if (idx < 4 && palette[idx * 4 + 3] > 0) count[idx]++;
         }
+      }
+      // Prefer index 0 as background (standard DVD subpicture convention).
+      // Only override if another opaque index is overwhelmingly more
+      // frequent (>5x), which guards against dense text dominating a small
+      // background box and flipping the polarity.
+      int bg_idx = 0;
+      for (int i = 1; i < 4; ++i) {
+        if (count[i] > 5 * count[0]) { bg_idx = i; break; }
+      }
+      for (int i = 0; i < 4; ++i) {
+        if (i != bg_idx && palette[i * 4 + 3] > 0 && count[i] > 0)
+          idx_is_text[i] = true;
+      }
+      // Safety net: if nothing was classified as text, fall back to the
+      // standard convention (index 0 background, indices 1..3 text).
+      if (!idx_is_text[1] && !idx_is_text[2] && !idx_is_text[3]) {
+        for (int i = 1; i < 4; ++i)
+          if (palette[i * 4 + 3] > 0) idx_is_text[i] = true;
+      }
+    }
+
+    for (int y = 0; y < rect->h; ++y) {
+      const unsigned char* row = rect->data[0] + y * rect->linesize[0];
+      for (int x = 0; x < rect->w; ++x) {
+        unsigned char idx = row[x];
+        bool is_bg;
+        if (!has_palette || (y_override && idx < 4)) {
+          // No palette data, or an explicit --y-threshold override:
+          // legacy absolute-luma threshold. Transparent entries have no
+          // real color, so they always map to background regardless of
+          // their stored RGB values.
+          if (has_palette && idx < 4 && palette[idx * 4 + 3] == 0) {
+            is_bg = true;
+          } else {
+            is_bg = (palette_luma[idx] < y_threshold);
+          }
+        } else if (idx >= 4) {
+          is_bg = true;                    // out-of-range index -> background
+        } else if (palette[idx * 4 + 3] == 0) {
+          is_bg = true;                    // transparent -> background
+        } else {
+          is_bg = !idx_is_text[idx];       // text/emphasis -> black
+        }
+        image[y * rect->w + x] = is_bg ? 255 : 0;
       }
     }
 
@@ -416,4 +467,104 @@ std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& 
 
   tess.Clear();
   return result;
+}
+
+std::vector<sub_text_t> process_subtitles(AVFormatContext* avfctx, int subtitle_stream_index,
+					  AVCodecContext* spu, const AVStream* stream,
+					  tesseract::TessBaseAPI& tess_api, int y_threshold,
+					  DumpFormat dump_format, const std::string& subname,
+					  const char* tess_lang, bool show, bool verbose) {
+
+
+  // Check for valid packet to read subtitles
+  AVPacket* packet = av_packet_alloc();
+  if (!packet) {
+    std::cerr << "Failed to allocate packet\n";
+    return {};
+  }
+
+  int sub_counter = 1;
+  unsigned img_counter = 1;
+  unsigned last_start_pts = 0;
+  std::vector<sub_text_t> conv_subs;
+  conv_subs.reserve(255);
+
+  while (av_read_frame(avfctx, packet) >= 0) {
+
+    // Check if this is a subtitle packet
+    if (packet->stream_index != subtitle_stream_index) {
+      av_packet_unref(packet);
+      continue;
+    }
+
+    // Decode the subtitle packet
+    int got_sub = 0;
+    AVSubtitle subtitle;
+    memset(&subtitle, 0, sizeof(subtitle));
+    int ret = avcodec_decode_subtitle2(spu, &subtitle, &got_sub, packet);
+
+    if (ret < 0) {
+      std::cerr << "Decode error: " << ret << "\n";
+      av_packet_unref(packet);
+      continue;
+    }
+
+    if (!got_sub) {
+      if (verbose) {
+	std::cerr << "No subtitle. Skipping.\n";
+      }
+      av_packet_unref(packet);
+      continue;
+    }
+
+    /* Derive start/end timing (usually 90kHz) from the packet PTS + decoder end time.
+       get_sub_timing() also performs duplicate-PTS detection and tracks
+       last_start_pts internally. it reports a skip when this is a duplicate. */
+    sub_timing_t sub_timing = get_sub_timing(packet, stream, subtitle, last_start_pts, sub_counter, verbose);
+
+    if (sub_timing.skip) {
+      std::cerr << "WARNING: Duplicate subtitle/invalid PTS. Skipping.";
+      av_packet_unref(packet);
+      continue;
+    }
+
+    // Process the decoded subtitle with OCR and optionally dump images
+    std::string text = get_sub_text(&subtitle, tess_api, y_threshold, dump_format, &subname, &img_counter, tess_lang, verbose);
+
+    if (!text.empty()) {
+      // Convert string to unique_ptr<char[]>
+      size_t text_len = text.length();
+      std::unique_ptr<char[]> text_ptr(new char[text_len + 1]);
+      memcpy(text_ptr.get(), text.c_str(), text_len + 1);
+      conv_subs.emplace_back(sub_text_t(sub_timing.start_pts_90k, sub_timing.end_pts_90k, std::move(text_ptr)));
+
+      if (show) {
+        std::cout << "Subtitle " << sub_counter << ": " << text;
+	if (verbose) {
+	  /* If end_pts is UINT64_MAX sentinel here (no explicit end time)
+	     it gets derived from the next subtitle's start in the write-out pass below. */
+	  const std::string timing = pts2srt(sub_timing.start_pts_90k) + " --> " +
+	    (sub_timing.end_pts_90k == UINT64_MAX ? "(unset, will use next start)" : pts2srt(sub_timing.end_pts_90k));
+	  std::cerr << '\n' << "timing= " << timing << '\n';
+	}
+      }
+      if (verbose) {
+	std::cerr << "\nduration=" << packet->duration << " position= " << packet->pos << " start_display_time= "
+		  << subtitle.start_display_time << " end_display_time= " << subtitle.end_display_time << " pts= "
+		  << packet->pts << '\n';
+      }
+
+      // Increment amount of decoded subtitles
+      sub_counter++;
+    }
+
+    // Clean up for next iteration
+    avsubtitle_free(&subtitle);
+    av_packet_unref(packet);
+  }
+
+  // Free the packet
+  av_packet_free(&packet);
+
+  return conv_subs;
 }

@@ -22,11 +22,15 @@
 
 #pragma once
 extern "C" {
-  #include <libavcodec/avcodec.h>   // AVSubtitle / AVSubtitleRect
+  #include <libavcodec/avcodec.h>   // AVSubtitle / AVSubtitleRect / AVCodecContext
+  #include <libavformat/avformat.h> // AVFormatContext / AVStream
 }
 
 #include <tesseract/baseapi.h> // Tesseract API
 #include <string>
+#include <cstdint>
+#include <memory>
+#include <vector>
 
 /* Image dump format for --dump-pgm / --dump-png */
 enum class DumpFormat { NONE, PNG, PGM };
@@ -35,13 +39,37 @@ enum class DumpFormat { NONE, PNG, PGM };
 extern int min_width;
 extern int min_height;
 
+/** A decoded subtitle ready for SRT write-out.
+ *  start_pts/end_pts are in 90kHz units; end_pts is UINT64_MAX when the
+ *  decoder gave no explicit end time (if so, it is set by time.cpp to the next
+ *  subtitle's start time). */
+struct sub_text_t {
+  uint64_t start_pts;
+  uint64_t end_pts;
+  std::unique_ptr<char[]> text;
+
+  sub_text_t(uint64_t s, uint64_t e, std::unique_ptr<char[]> t)
+    : start_pts(s), end_pts(e), text(std::move(t)) {}
+};
+
 /**
  * Extract subtitle image data from AVSubtitle, optionally dump images, then run OCR.
  *
  * Convert to grayscale and invert so text is dark on light background
  * (required for Tesseract OCR accuracy).
  */
-std::string extract_subtitle_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess,
-                                  int y_threshold, DumpFormat dump_format = DumpFormat::NONE,
-                                  const std::string* filename_base = nullptr, unsigned* counter_ptr = nullptr,
-                                  const char* file_lang = nullptr, bool verbose = false);
+std::string get_sub_text(AVSubtitle* subtitle, tesseract::TessBaseAPI& tess,
+			      int y_threshold, DumpFormat dump_format = DumpFormat::NONE,
+			      const std::string* filename_base = nullptr, unsigned* counter_ptr = nullptr,
+			      const char* file_lang = nullptr, bool verbose = false);
+
+/**
+ * Read every subtitle packet from the container, decode it, derive its timing,
+ * and run OCR (with optional image dumping). Returns the decoded subtitles in
+ * order.
+ */
+std::vector<sub_text_t> process_subtitles(AVFormatContext* avfctx, int subtitle_stream_index,
+                                                 AVCodecContext* spu, const AVStream* stream,
+                                                 tesseract::TessBaseAPI& tess_api, int y_threshold,
+                                                 DumpFormat dump_format, const std::string& subname,
+                                                 const char* tess_lang, bool show, bool verbose);

@@ -44,9 +44,8 @@ std::string pts2srt(uint64_t pts) {
     return buf.data();
 }
 
-sub_timing_t get_subtitle_timing(const AVPacket* packet, const AVStream* stream,
-                                     const AVSubtitle& subtitle, unsigned& last_start_pts,
-                                     int sub_counter, bool verbose) {
+sub_timing_t get_sub_timing(const AVPacket* packet, const AVStream* stream, const AVSubtitle& subtitle,
+			    unsigned& last_start_pts, int sub_counter, bool verbose) {
   sub_timing_t result;
   result.start_pts_90k = 0;
   result.end_pts_90k = UINT64_MAX;
@@ -69,9 +68,9 @@ sub_timing_t get_subtitle_timing(const AVPacket* packet, const AVStream* stream,
   // Convert from stream timebase to standard SRT format (90kHz)
   uint64_t start_pts_90k = static_cast<uint64_t>(av_rescale_q(pts_val, tb, AVRational{1, 90000}));
 
-  // DVD subtitles don't provide accurate duration per packet (packet->duration is always 0).
-  // Use end_display_time from the dvdsub decoder; a value of 0 means no explicit end time
-  // so mark it with UINT64_MAX and let the write-out pass derive one from the next subtitle.
+  /* DVD subtitles don't provide accurate duration per packet (packet->duration is always 0).
+     Use end_display_time from the dvdsub decoder; a value of 0 means no explicit end time
+     so mark it with UINT64_MAX and let the write-out pass derive one from the next subtitle start. */
   uint64_t end_pts_90k = UINT64_MAX;
   if (subtitle.end_display_time > 0 && subtitle.end_display_time < UINT32_MAX) {
     // sanity: reject durations that would overflow or produce garbage timing
@@ -84,7 +83,7 @@ sub_timing_t get_subtitle_timing(const AVPacket* packet, const AVStream* stream,
     }
   }
 
-  // Track last PTS to detect duplicates (in stream timebase units)
+  // Track last PTS to detect duplicates
   if (pts_val == last_start_pts && pts_val != 0) {
     result.skip = true;
     if (verbose) {
