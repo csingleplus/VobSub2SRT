@@ -30,6 +30,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -354,10 +355,10 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  FILE *srtout = nullptr;
+  std::ofstream srtout;
   if (write_srt) {
-    srtout = std::fopen(srt_filename.c_str(), "w");
-    if(!srtout) {
+    srtout.open(srt_filename);
+    if (!srtout.is_open()) {
       std::cerr << "Could not open .srt file for writing.\n";
       return 1;
     }
@@ -384,14 +385,13 @@ int main(int argc, char **argv) {
         }
       }
 
-      std::fprintf(srtout, "%u\n%s --> %s\n%s\n\n", i+1, pts2srt(conv_subs[i].start_pts).c_str(),
-	       pts2srt(conv_subs[i].end_pts).c_str(), conv_subs[i].text.get());
+      srtout << i+1 << "\n" << pts2srt(conv_subs[i].start_pts) << " --> " << pts2srt(conv_subs[i].end_pts) << "\n"
+             << conv_subs[i].text.get() << "\n";
     }
   }
 
-  // Close up shop
+  // Free Tesseract, avcodec and avformat's memory
   tess_api.End();
-  if (srtout) std::fclose(srtout);
   avcodec_free_context(&spu);
   dec_close(avfctx);
 
