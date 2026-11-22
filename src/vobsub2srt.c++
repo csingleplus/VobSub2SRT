@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -64,7 +65,7 @@ int main(int argc, char **argv) {
   std::string tess_user_dir;
   int tess_user_dpi = 72;
   int index = -1;
-  int y_threshold = 16;
+  int y_threshold = 64;
 
   auto time_s = std::chrono::steady_clock::now(); // Start runtime counter
   av_log_set_level(AV_LOG_WARNING); // Set libav warning level.
@@ -86,7 +87,7 @@ int main(int argc, char **argv) {
       add_option("tesseract-data", tess_user_dir, "Path to Tesseract data (e.g. you have tessdata_best traineddata files in a custom directory).").
       add_option("dpi", tess_user_dpi, "Set DPI for Tesseract OCR. Default: 72").
       add_option("blacklist", blacklist, "Character blacklist to improve the OCR (e.g. \"|\\/`_~<>\" to avoid common misreads).\n\t\t\t\tNote that VobSub2SRT automatically blacklists \"\\/|\". Use --blacklist \"\" to disable it.", 'b').
-      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors are treated as black (0-255). Default: 16.\n\t\t\t\tSetting this to any other value forces luma-threshold binarization instead of automatic palette-based classification. Useful for titles where auto-detection misbehaves. You may also want the title's IFO file passed with this argument.", 'y').
+      add_option("y-threshold", y_threshold, "Y (luminance) threshold below which colors are treated as black (0-255). Default: 64.\n\t\t\t\tSetting this to any other value forces luma-threshold binarization instead of automatic palette-based classification. Useful for titles where auto-detection misbehaves. You may also want the title's IFO file passed with this argument.", 'y').
       add_option("min-width", min_width, "Minimum width in pixels to consider a subpicture for OCR. Default: 8").
       add_option("min-height", min_height, "Minimum height in pixels to consider a subpicture for OCR. Default: 8");
 
@@ -127,7 +128,7 @@ int main(int argc, char **argv) {
   }
 
   // Set Y threshold
-  if (y_threshold != 16) {
+  if (y_threshold != 64) {
     std::cout << "Using Y palette threshold: " << y_threshold << "\n";
   }
 
@@ -302,9 +303,21 @@ int main(int argc, char **argv) {
     }
     srt_filename = base_name + "." + std::string(tess_lang) + ".srt";
   }
+
+  // Check if file exists before writing
+  if (std::filesystem::exists(srt_filename)) {
+    std::cout << srt_filename.c_str() << " already exists. Overwrite? [y/N]\n";
+
+    char yn;
+    if (!(std::cin >> std::noskipws >> yn) || (yn != 'y' && yn != 'Y')) {
+      std::cerr << "Refusing to overwrite existing file. Exiting.\n";
+      return 1;
+    }
+  }
+
   FILE *srtout = std::fopen(srt_filename.c_str(), "w");
   if(!srtout) {
-    std::cerr << "Could not open .srt file for writing.\n";
+    std::cerr << "Could not open .srt file for writing, or file exists.\n";
     return 1;
   }
 
