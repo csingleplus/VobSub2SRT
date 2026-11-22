@@ -49,10 +49,28 @@ const char* version = _VOBSUB2SRT_VERSION_;
 const char* codename = _VOBSUB2SRT_CODENAME_;
 
 
+/** Prompt before overwriting an existing file.
+ *  Returns true if it is OK to proceed (file absent, or user confirmed).
+ *  When using the --force flag, the prompt is skipped and overwrites files. */
+static bool confirm_overwrite(const std::string& path, bool force = false) {
+  if (!std::filesystem::exists(path) || force) {
+    return true;
+  }
+  std::cout << path << " already exists. Overwrite? [y/N]\n";
+  std::string yn;
+  if (!std::getline(std::cin, yn) || yn.empty() || (yn[0] != 'y' && yn[0] != 'Y')) {
+    std::cerr << "Refusing to overwrite existing file.\n";
+    return false;
+  }
+  return true;
+}
+
+
 int main(int argc, char **argv) {
   bool show = false;
   bool dump_pgmfiles = false;
   bool dump_pngfiles = false;
+  bool force_overwrite = false;
   bool verbose = false;
   bool env = false;
   bool list_languages = false;
@@ -78,6 +96,7 @@ int main(int argc, char **argv) {
       add_option("show", show, "Show subtitles being written.", 's').
       add_option("dump-pgm", dump_pgmfiles, "Save subtitles as sequential NetPBM image files (<subname>-0001.pgm etc.)").
       add_option("dump-png", dump_pngfiles, "Above, but in PNG format.").
+      add_option("force", force_overwrite, "Overwrite existing output files without prompting.", 'f').
       add_option("verbose", verbose, "Debug prints to stderr.").
       add_option("ifo", ifo_file, "IFO file for DVD subtitle palette extraction (e.g., VIDEO_TS.IFO/VTS_01_0.IFO)").
       add_option("lang", lang, "Language to select", 'l').
@@ -304,29 +323,44 @@ int main(int argc, char **argv) {
     srt_filename = base_name + "." + std::string(tess_lang) + ".srt";
   }
 
-  // Check if file exists before writing
-  if (std::filesystem::exists(srt_filename)) {
-    std::cout << srt_filename.c_str() << " already exists. Overwrite? [y/N]\n";
-
-    char yn;
-    if (!(std::cin >> std::noskipws >> yn) || (yn != 'y' && yn != 'Y')) {
-      std::cerr << "Refusing to overwrite existing file. Exiting.\n";
-      return 1;
-    }
-  }
-
-  FILE *srtout = std::fopen(srt_filename.c_str(), "w");
-  if(!srtout) {
-    std::cerr << "Could not open .srt file for writing, or file exists.\n";
-    return 1;
-  }
-
   // Determine dump format based on user options
   DumpFormat dump_format = DumpFormat::NONE;
   if (dump_pngfiles) {
     dump_format = DumpFormat::PNG;
   } else if (dump_pgmfiles) {
     dump_format = DumpFormat::PGM;
+  }
+
+  /* Ask user if images are to be overwritten while still writing the SRT
+     unless --force is set. */
+  bool write_srt = confirm_overwrite(srt_filename, force_overwrite);
+
+  if (dump_format != DumpFormat::NONE) {
+    std::string ext = (dump_format == DumpFormat::PNG) ? "png" : "pgm";
+    std::string first_img = subname + "-0001.";
+    if (std::strlen(tess_lang) > 0) {
+      first_img += tess_lang;
+      first_img += '.';
+    }
+    first_img += ext;
+    if (!confirm_overwrite(first_img, force_overwrite)) {
+      std::cout << "Skipping image dump.\n";
+      dump_format = DumpFormat::NONE;
+    }
+  }
+
+  if (!write_srt && dump_format == DumpFormat::NONE) {
+    std::cerr << "Nothing to write (both outputs were skipped). Exiting.\n";
+    return 1;
+  }
+
+  FILE *srtout = nullptr;
+  if (write_srt) {
+    srtout = std::fopen(srt_filename.c_str(), "w");
+    if(!srtout) {
+      std::cerr << "Could not open .srt file for writing.\n";
+      return 1;
+    }
   }
 
   /* Decode every subtitle packet, derive its timing, and run OCR (with any
@@ -336,38 +370,44 @@ int main(int argc, char **argv) {
 							spu, stream, tess_api, y_threshold,
 							dump_format, subname, tess_lang, show, verbose);
 
-  // Write the file, fixing end_pts when needed
-  for(unsigned i = 0; i < conv_subs.size(); ++i) {
-    if(conv_subs[i].end_pts == UINT64_MAX) {
-      if(i+1 < conv_subs.size()) {
-        // Use next subtitle's start time as this subtitle's end time
-        conv_subs[i].end_pts = conv_subs[i+1].start_pts;
-      } else {
-        // Last subtitle: add a reasonable default duration (~2 seconds in 90kHz = 180000 ticks)
-	// this may have been a kludgy workaround that should be fixed. needs testing with a bad pts subtitle.
-        conv_subs[i].end_pts = conv_subs[i].start_pts + 180000;
+  // Write the file, fixing end_pts where needed
+  if (write_srt) {
+    for(unsigned i = 0; i < conv_subs.size(); ++i) {
+      if(conv_subs[i].end_pts == UINT64_MAX) {
+        if(i+1 < conv_subs.size()) {
+          // Use next subtitle's start time as this subtitle's end time
+          conv_subs[i].end_pts = conv_subs[i+1].start_pts;
+        } else {
+          // Last subtitle: add a reasonable default duration (~2 seconds in 90kHz = 180000 ticks)
+	  // this may have been a kludgy workaround that should be fixed. needs testing with a bad pts subtitle.
+          conv_subs[i].end_pts = conv_subs[i].start_pts + 180000;
+        }
       }
-    }
 
-    std::fprintf(srtout, "%u\n%s --> %s\n%s\n\n", i+1, pts2srt(conv_subs[i].start_pts).c_str(),
-		 pts2srt(conv_subs[i].end_pts).c_str(), conv_subs[i].text.get());
+      std::fprintf(srtout, "%u\n%s --> %s\n%s\n\n", i+1, pts2srt(conv_subs[i].start_pts).c_str(),
+	       pts2srt(conv_subs[i].end_pts).c_str(), conv_subs[i].text.get());
+    }
   }
 
   // Close up shop
   tess_api.End();
-  std::fclose(srtout);
+  if (srtout) std::fclose(srtout);
   avcodec_free_context(&spu);
   dec_close(avfctx);
 
   auto time_f = std::chrono::steady_clock::now();
   std::chrono::duration<double> elapsed = time_f - time_s;
-  if (dump_pngfiles) {
+  if (dump_pngfiles && dump_format == DumpFormat::PNG) {
     std::cout << "Wrote images to '" << subname << "-####." << tess_lang << ".png.'\n";
   }
-  if (dump_pgmfiles) {
+  if (dump_pgmfiles && dump_format == DumpFormat::PGM) {
     std::cout << "Wrote images to '" << subname << "-####." << tess_lang << ".pgm.'\n";
   }
-  std::cout << "Wrote subtitles to '" << srt_filename << "', " << elapsed.count() << " seconds elapsed.\n";
+  if (write_srt) {
+    std::cout << "Wrote subtitles to '" << srt_filename << "', " << elapsed.count() << " seconds elapsed.\n";
+  } else {
+    std::cout << "Skipped subtitles (existing file). " << elapsed.count() << " seconds elapsed.\n";
+  }
 
   // Warn if a placeholder language code was used, and instruct the user
   if(placeholder_lang_used) {
