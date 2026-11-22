@@ -1,4 +1,4 @@
-.TH vobsub2srt 2.0.0-rc6 "12 Nov 2026"
+.TH vobsub2srt 2.0.0-rc6 "22 Nov 2026"
 .SH NAME
 vobsub2srt \- Converts DVD bitmap subtitles (.idx/.sub or directly from a FFmpeg-compatible file) into .srt subtitles using Tesseract OCR and libavcodec et. al.
 .SH SYNOPSIS
@@ -22,8 +22,14 @@ Extract the subtitles as NetPBM PGM images (format \fIFILENAME.LANG\fR-\fINUMBER
 \fB\-\-dump\-png\fR
 Extract the subtitles to sequential PNG files.
 .TP
-\fB\-\-show\fR
+\fB\-\-env\fR, \fB\-e\fR
+Prints TESSDATA_PREFIX environment variable for diagnostics, then exits.
+.TP
+\fB\-\-show\fR, \fB\-s\fR
 Print text output to terminal (to stdout).
+.TP
+\fB\-\-force\fR, \fB\-f\fR
+Force overwrite of SRT files and image dumps.
 .TP
 \fB\-\-output, \-o\fR
 Output subtitles to specified filename.
@@ -31,32 +37,33 @@ Output subtitles to specified filename.
 \fB\-\-verbose\fR
 Print verbose information about the subtitle decoding process (to stderr).
 .TP
-\fB\-\-lang\fR \fIlanguage\fR
+\fB\-\-lang\fR \fIlanguage\fR, \fB\-l\fR \fIlanguage\fR
 Select the language of the subtitle (two-letter ISO 639-1 code, e.g. en for English or de for German, or three-letter ISO 639-3 code).
 Use \fI--langlist\fR to see the languages in the subtitle file.
 .TP
 \fB\-\-langlist\fR
 List languages and exit.
 .TP
-\fB\-\-index\fR \fIindex\fR
+\fB\-\-index\fR \fIindex\fR, \fB\-i\fR \fIindex\fR
 The index of the subtitle to convert.  Use this instead \fI--lang\fR if there are several streams with the same language.
 Combining \fI--lang\fR and \fI--index\fR does not work! Usage of \fI--index\fR combined with Tesseract language with \fI--tesseract-lang\fR, e.g. \fI--index 3 --tesseract-lang spa\fR is more reliable.
 .TP
 \fB\-\-ifo\fR \fIifo-file\fR
-To use a specific IFO file for the palette (useful when no OCR happens).
+Use a specific IFO file for the palette (useful when no OCR happens or looks wrong).
 .TP
 \fB\-\-tesseract-lang\fR \fIlanguage\fR
-Set the language to be used by Tesseract.  This is auto detected in .idx files and normally does not need to be changed.
+Set the language to be used by Tesseract.  This is auto detected and normally does not need to be changed.
 If however you need special language settings (e.g., deu-frak, chi_sim, chi_tra), or to recognize multiple languages in one set of subtitles, add them together as such: spa+eng.
 .TP
 \fB\-\-tesseract-data\fR \fIpath\fR
-Set path to Tesseract data. (e.g. where your Tesseract \fItraineddata\fR files are, otherwise auto-detect standard Tesseract data).
+Set path to Tesseract data. (e.g. where your Tesseract \fItraineddata\fR files are, otherwise auto-detect).
 .TP
-\fB\-\-blacklist\fR \fIblacklist\fR
-Blacklist characters for OCR (e.g. |\\/`_~<>). Default set to |\/
+\fB\-\-blacklist\fR \fIblacklist\fR, \fB\-b\fR \fIblacklist\fR
+Blacklist characters for OCR (e.g. |\\/`_~<>). Default set to |\\/.
+Use --blacklist "" to disable the default blacklist at the cost of some accuracy.
 .TP
-\fB\-\-y-threshold\fR \fIthreshold\fR
-Y (luminance) threshold below which colors treated as black (Default: 16).
+\fB\-\-y-threshold\fR \fIthreshold\fR, \fB\-y\fR \fIthreshold\fR
+Y (luminance) threshold below which colors treated as black (Default: 64).
 .TP
 \fB\-\-min-width\fR \fIwidth\fR
 Minimum width in pixels to consider a subpicture for OCR (Default: 8).
@@ -65,15 +72,15 @@ Minimum width in pixels to consider a subpicture for OCR (Default: 8).
 Minimum height in pixels to consider a subpicture for OCR (Default: 8).
 .SH EXAMPLES
 .nf
-  $ \fBvobsub2srt foobar.mkvfR; $ \fBvobsub2srt foobar.idx\fR
+  $ \fBvobsub2srt \-\-show foobar.mkv\fR; $ \fBvobsub2srt \-\-show foobar.idx\fR
 .fi
 Prints the subtitles as they are passed through OCR.\fR
 .nf
-  $ \fBvobsub2srt \-\-lang en foobar.mkv\fR
+  $ \fBvobsub2srt \-l en foobar.mkv\fR
 .fi
 Converts the English language subtitles from the media (VOB, MP4, MKV etc) or VobSub files \fIfoobar.idx\fR/\fIfoobar.sub\fR to srt subtitles in \fIfoobar.srt\fR.
 .nf
-  $ \fBvobsub2srt \-\-lang zh \-\-tesseract-lang chi_sim foobar\fR
+  $ \fBvobsub2srt \-l zh \-\-tesseract-lang chi_sim foobar\fR
 .fi
 Converts the chinese language subtitles using simplified chinese (chi_sim) characters.
 .nf
