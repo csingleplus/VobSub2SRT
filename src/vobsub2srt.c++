@@ -25,6 +25,7 @@
 // standard libs
 #include <chrono>
 #include <climits>
+#include <cerrno>
 #include <cstdlib>
 #include <cstdint>
 #include <cstdio>
@@ -34,6 +35,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <vector>
 
 // VobSub2SRT internals
@@ -52,9 +54,24 @@ const char* codename = _VOBSUB2SRT_CODENAME_;
 
 /** Prompt before overwriting an existing file.
  *  Returns true if it is OK to proceed (file absent, or user confirmed).
- *  When using the --force flag, the prompt is skipped and overwrites files. */
-static bool confirm_overwrite(const std::string& path, bool force = false) {
-  if (!std::filesystem::exists(path) || force) {
+ *  When using the --force flag, the prompt is skipped and overwrites files.
+ *
+ *  had_error: set when a failure was a hard error (e.g. permission denied)
+ *  rather than a user refusal */
+static bool confirm_overwrite(const std::string& path, bool force = false,
+                              bool* had_error = nullptr) {
+  /* ec: reports failures (e.g. permission denied, no free space)
+     instead of a generic error message */
+  std::error_code ec;
+  bool exists = std::filesystem::exists(path, ec);
+  if (ec) {
+    /* If the file isn't readable, stop and show the system error. */
+    std::cerr << "Could not open '" << path << "': "
+              << ec.message() << "\n";
+    if (had_error) *had_error = true;
+    return false;
+  }
+  if (!exists || force) {
     return true;
   }
   std::cout << path << " already exists. Overwrite? [y/N]\n";
@@ -65,7 +82,6 @@ static bool confirm_overwrite(const std::string& path, bool force = false) {
   }
   return true;
 }
-
 
 int main(int argc, char **argv) {
   bool show = false;
@@ -295,8 +311,8 @@ int main(int argc, char **argv) {
     tess_api.SetVariable("tessedit_char_blacklist", "\\/|");
   }
 
-  // Set DPI to 72, or user-specified with --dpi
-  if (tess_user_dpi > 0) {
+  // Set DPI to 72, or user-specified with --dpi (this is likely unnecessary.)
+  if (tess_user_dpi != 72) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%d", tess_user_dpi);
     const char* tess_dpi = buf;
@@ -334,7 +350,8 @@ int main(int argc, char **argv) {
 
   /* Ask user if images are to be overwritten while still writing the SRT
      unless --force is set. */
-  bool write_srt = confirm_overwrite(srt_filename, force_overwrite);
+  bool had_error = false;
+  bool write_srt = confirm_overwrite(srt_filename, force_overwrite, &had_error);
 
   if (dump_format != DumpFormat::NONE) {
     std::string ext = (dump_format == DumpFormat::PNG) ? "png" : "pgm";
@@ -344,14 +361,18 @@ int main(int argc, char **argv) {
       first_img += '.';
     }
     first_img += ext;
-    if (!confirm_overwrite(first_img, force_overwrite)) {
+    if (!confirm_overwrite(first_img, force_overwrite, &had_error)) {
       std::cout << "Skipping image dump.\n";
       dump_format = DumpFormat::NONE;
     }
   }
 
   if (!write_srt && dump_format == DumpFormat::NONE) {
-    std::cerr << "Nothing to write (both outputs were skipped). Exiting.\n";
+    /* If no error state but the user answered other than Y/y to overwrite,
+       say so and quit. */
+    if (!had_error) {
+      std::cerr << "Nothing to write (both outputs were skipped). Exiting.\n";
+    }
     return 1;
   }
 
@@ -359,7 +380,10 @@ int main(int argc, char **argv) {
   if (write_srt) {
     srtout.open(srt_filename);
     if (!srtout.is_open()) {
-      std::cerr << "Could not open .srt file for writing.\n";
+      // Capture errno on failure, report it and exit.
+      const int error = errno;
+      std::cerr << "Could not open .srt file for writing: "
+                << std::strerror(error) << " (" << srt_filename << ")\n";
       return 1;
     }
   }
